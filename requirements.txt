@@ -1,0 +1,15 @@
+streamlit
+dash
+dash-daq
+numpy
+pandas
+matplotlib
+plotly
+rasterio
+shapely
+folium
+scikit-image
+simplekml
+requests
+openpyxl
+streamlit-drawable-canvas 
