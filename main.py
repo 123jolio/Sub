@@ -4,10 +4,13 @@
 """
 Subterranean Detection App (Enterprise-Grade UI)
 -------------------------------------------------
-This version hides debug messages by default and provides a
-very professional, user-friendly interface.
 For Option A, data is read from "folder_a" and for Option B, from "folder_b".
 All file paths are constructed absolutely using the location of this script.
+Make sure your folder structure is:
+  Subterra_2/
+      main.py
+      folder_a/   <- contains area folders for Option A
+      folder_b/   <- contains area folders (e.g., "7", etc.) for Option B
 """
 
 import os
@@ -28,7 +31,7 @@ from rasterio.errors import NotGeoreferencedWarning
 import warnings
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 
-# Global debug flag (set to True for debugging output)
+# Global debug flag
 DEBUG = False
 
 def debug(*args, **kwargs):
@@ -45,7 +48,7 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# Inject custom CSS for professional appearance
+# Inject custom CSS
 # -----------------------------------------------------------------------------
 def inject_custom_css():
     custom_css = """
@@ -74,7 +77,7 @@ inject_custom_css()
 # -----------------------------------------------------------------------------
 def extract_date_from_filename(filename: str):
     basename = os.path.basename(filename)
-    debug("DEBUG: Extracting date from filename:", basename)
+    debug("Extracting date from filename:", basename)
     match = re.search(r'(\d{4})[_-](\d{2})[_-](\d{2})', basename)
     if not match:
         match = re.search(r'(\d{4})(\d{2})(\d{2})', basename)
@@ -85,12 +88,12 @@ def extract_date_from_filename(filename: str):
             day_of_year = date_obj.timetuple().tm_yday
             return day_of_year, date_obj
         except Exception as e:
-            debug("DEBUG: Error converting date:", e)
+            debug("Error converting date:", e)
             return None, None
     return None, None
 
 def load_lake_shape_from_xml(xml_file: str, bounds: tuple = None, xml_width: float = 518.0, xml_height: float = 505.0):
-    debug("DEBUG: Loading outline from:", xml_file)
+    debug("Loading outline from:", xml_file)
     try:
         tree = ET.parse(xml_file)
         root = tree.getroot()
@@ -114,14 +117,14 @@ def load_lake_shape_from_xml(xml_file: str, bounds: tuple = None, xml_width: flo
             points = transformed_points
         if points and (points[0] != points[-1]):
             points.append(points[0])
-        debug("DEBUG: Loaded", len(points), "points.")
+        debug("Loaded", len(points), "points.")
         return {"type": "Polygon", "coordinates": [points]}
     except Exception as e:
         st.error(f"Error loading outline from {xml_file}: {e}")
         return None
 
 def read_image(file_path: str, lake_shape: dict = None):
-    debug("DEBUG: Reading image from:", file_path)
+    debug("Reading image from:", file_path)
     with rasterio.open(file_path) as src:
         img = src.read(1).astype(np.float32)
         profile = src.profile.copy()
@@ -137,7 +140,7 @@ def read_image(file_path: str, lake_shape: dict = None):
     return img, profile
 
 def load_data(input_folder: str, shapefile_name="shapefile.xml"):
-    debug("DEBUG: load_data called with:", input_folder)
+    debug("Loading data from folder:", input_folder)
     if not os.path.exists(input_folder):
         raise Exception(f"Folder does not exist: {input_folder}")
     shapefile_path_xml = os.path.join(input_folder, shapefile_name)
@@ -149,7 +152,7 @@ def load_data(input_folder: str, shapefile_name="shapefile.xml"):
         shape_file = shapefile_path_txt
     else:
         shape_file = None
-        debug("DEBUG: No XML outline found in folder", input_folder)
+        debug("No XML outline found in folder", input_folder)
     all_tif_files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
     tif_files = [fp for fp in all_tif_files if os.path.basename(fp).lower() != "mask.tif"]
     if not tif_files:
@@ -173,7 +176,7 @@ def load_data(input_folder: str, shapefile_name="shapefile.xml"):
     return stack, np.array(days), date_list
 
 # -----------------------------------------------------------------------------
-# get_data_folder: Build absolute paths using the base directory and methodology.
+# get_data_folder: Build absolute paths using base_dir and chosen methodology.
 # -----------------------------------------------------------------------------
 def get_data_folder(waterbody: str, index: str) -> str:
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -183,12 +186,13 @@ def get_data_folder(waterbody: str, index: str) -> str:
     else:
         base_folder = os.path.join(base_dir, "folder_b")
     
-    debug("DEBUG: Base folder being used:", base_folder)
+    debug("Base folder being used:", base_folder)
     if not os.path.exists(base_folder):
         st.error("No valid mother folders found with required subfolders.")
         return None
 
     waterbody_folder = os.path.join(base_folder, waterbody)
+    debug("Looking for area folder at:", waterbody_folder)
     if not os.path.exists(waterbody_folder):
         st.error(f"Area folder not found: {waterbody_folder}")
         return None
@@ -202,7 +206,7 @@ def get_data_folder(waterbody: str, index: str) -> str:
     else:
         data_folder = os.path.join(waterbody_folder, index)
     
-    debug("DEBUG: Data folder resolved to:", data_folder)
+    debug("Data folder resolved to:", data_folder)
     if not os.path.exists(data_folder):
         st.error(f"Data folder does not exist: {data_folder}")
         return None
@@ -221,7 +225,7 @@ def run_intro_page():
             if os.path.exists(logo_path):
                 st.image(logo_path, width=250)
             else:
-                debug("DEBUG: Logo not found.")
+                debug("Logo not found.")
         with col_text:
             st.markdown("<h2 class='header-title'>Subterranean Detection Characteristics</h2>", unsafe_allow_html=True)
             st.markdown("<p style='text-align: center; font-size: 1.1rem;'>This detection application uses remote sensing tools. Select the settings from the sidebar and explore the data.</p>", unsafe_allow_html=True)
@@ -230,8 +234,8 @@ def run_intro_page():
 def run_custom_ui():
     st.sidebar.markdown("<div class='nav-section'><h4>Analysis Settings</h4></div>", unsafe_allow_html=True)
     base_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Determine the base folder from the selected methodology.
+    
+    # Select methodology; value stored in session_state.
     method_option = st.sidebar.selectbox("Select Methodology", ["Option A", "Option B"], key="method_option")
     if method_option == "Option A":
         chosen_dir = os.path.join(base_dir, "folder_a")
@@ -239,7 +243,7 @@ def run_custom_ui():
         chosen_dir = os.path.join(base_dir, "folder_b")
     
     st.write(f"**Data will be read from:** {chosen_dir}")
-    debug("DEBUG: Chosen directory:", chosen_dir)
+    debug("Chosen directory:", chosen_dir)
     
     if not os.path.exists(chosen_dir):
         st.error("No valid mother folders found with required subfolders.")
@@ -248,7 +252,6 @@ def run_custom_ui():
     area_options = sorted(
         [d for d in os.listdir(chosen_dir) if os.path.isdir(os.path.join(chosen_dir, d))]
     )
-    # If Option B and no subdirectories found, fallback to a fixed list.
     if method_option == "Option B" and not area_options:
         st.warning("No subdirectories found in folder_b; using default area list.")
         area_options = ["Κορώνεια", "Πολυφύτου", "Γαδουρά", "Αξιός"]
@@ -532,7 +535,7 @@ def run_water_quality_dashboard(waterbody: str, index: str):
                     date_obj = datetime.strptime(date_str, '%Y_%m_%d').date()
                     available_dates[str(date_obj)] = filename
                 except Exception as e:
-                    debug("DEBUG: Error extracting date from", filename, ":", e)
+                    debug("Error extracting date from", filename, ":", e)
                     continue
 
         if available_dates:
@@ -777,7 +780,7 @@ def run_water_quality_dashboard(waterbody: str, index: str):
                                 date_obj = datetime.strptime(date_str, '%Y_%m_%d').date()
                                 available_dates[str(date_obj)] = filename
                             except Exception as e:
-                                debug("DEBUG: Error extracting date from", filename, ":", e)
+                                debug("Error extracting date from", filename, ":", e)
                                 continue
                     if available_dates:
                         sorted_dates = sorted(available_dates.keys())
@@ -840,7 +843,7 @@ def run_water_quality_dashboard(waterbody: str, index: str):
                             st.plotly_chart(fig_detail, use_container_width=True, key="default_fig_detail")
                         else:
                             st.info("No mg data available for this point.")
-        # Tab 2: Upload Sampling (similar structure as Tab 1)
+        # Tab 2: Upload Sampling
         with sampling_tabs[1]:
             st.header("Analysis for Upload Sampling")
             uploaded_file = st.file_uploader("Upload a KML file for new sampling points", type="kml", key="upload_kml")
@@ -887,7 +890,7 @@ def run_water_quality_dashboard(waterbody: str, index: str):
                                     date_obj = datetime.strptime(date_str, '%Y_%m_%d').date()
                                     available_dates[str(date_obj)] = filename
                                 except Exception as e:
-                                    debug("DEBUG: Error extracting date from", filename, ":", e)
+                                    debug("Error extracting date from", filename, ":", e)
                                     continue
                         if available_dates:
                             sorted_dates = sorted(available_dates.keys())
@@ -960,14 +963,14 @@ def run_water_quality_dashboard(waterbody: str, index: str):
 # Main entry point
 # -----------------------------------------------------------------------------
 def main():
-    debug("DEBUG: Entered main()")
+    debug("Entered main()")
     run_intro_page()
     run_custom_ui()
     
     wb = st.session_state.get("waterbody_choice", None)
     idx = st.session_state.get("index_choice", None)
     analysis = st.session_state.get("analysis_choice", None)
-    debug("DEBUG: Selections: Area =", wb, "Index =", idx, "Analysis =", analysis)
+    debug("Selections: Area =", wb, "Index =", idx, "Analysis =", analysis)
     
     if wb is not None and idx is not None:
         if analysis == "Subterranean Processing":
