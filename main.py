@@ -6,6 +6,7 @@ Subterranean Detection App (Enterprise-Grade UI)
 -------------------------------------------------
 For Option A, data is read from "folder_a" (relative to main.py) and for Option B, from a hard-coded path:
     C:\Users\ilioumbas\Documents\GitHub\Sub
+
 Ensure that for Option B, your area folders (e.g. "7") are located directly in that folder with their
 subfolders (e.g. "7_grid", "7_jpgs", etc.).
 """
@@ -32,6 +33,7 @@ warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 DEBUG = True
 
 def debug(*args, **kwargs):
+    """Helper function to print debug messages if DEBUG is True."""
     if DEBUG:
         st.write(*args, **kwargs)
 
@@ -109,6 +111,7 @@ def load_lake_shape_from_xml(xml_file: str, bounds: tuple = None, xml_width: flo
             transformed_points = []
             for x_xml, y_xml in points:
                 x_geo = minx + (x_xml / xml_width) * (maxx - minx)
+                # Adjust transformation logic if needed
                 y_geo = maxx - (y_xml / xml_height) * (maxx - miny)
                 transformed_points.append([x_geo, y_geo])
             points = transformed_points
@@ -173,14 +176,15 @@ def load_data(input_folder: str, shapefile_name="shapefile.xml"):
     return stack, np.array(days), date_list
 
 # -----------------------------------------------------------------------------
-# get_data_folder: For Option A, use folder_a; for Option B, use the hard-coded path.
+# get_data_folder: For Option A, use folder_a; for Option B, use a hard-coded path.
 # -----------------------------------------------------------------------------
 def get_data_folder(waterbody: str, index: str) -> str:
+    """If Option A, build path from main.py folder. If Option B, use the user-specified local path."""
     if st.session_state.get("method_option", "Option A") == "Option A":
         base_dir = os.path.dirname(os.path.abspath(__file__))
         base_folder = os.path.join(base_dir, "folder_a")
     else:
-        # Hard-coded path for Option B.
+        # Hard-coded path for Option B
         base_folder = r"C:\Users\ilioumbas\Documents\GitHub\Sub"
     
     debug("Base folder being used:", base_folder)
@@ -194,6 +198,7 @@ def get_data_folder(waterbody: str, index: str) -> str:
         st.error(f"Area folder not found: {waterbody_folder}")
         return None
 
+    # Decide subfolder by index
     if index == "Χλωροφύλλη":
         data_folder = os.path.join(waterbody_folder, "Chlorophyll")
     elif index == "Burned Areas":
@@ -233,15 +238,19 @@ def run_custom_ui():
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
     method_option = st.sidebar.selectbox("Select Methodology", ["Option A", "Option B"], key="method_option")
+    
     if method_option == "Option A":
         chosen_dir = os.path.join(base_dir, "folder_a")
     else:
+        # For Option B, show debug info about the local path
         chosen_dir = os.path.join(base_dir, "folder_b")
+        st.write("**[Debug for Option B]** The code will ultimately look in:")
+        st.write(r"C:\Users\ilioumbas\Documents\GitHub\Sub")
     
-    st.write(f"**Data will be read from:** {chosen_dir}")
+    st.write(f"**Data will be read from (for UI listing):** {chosen_dir}")
     debug("Chosen directory:", chosen_dir)
     
-    # List immediate contents for debugging.
+    # Attempt to list immediate contents for debugging
     try:
         contents = os.listdir(chosen_dir)
         st.write("### Immediate contents of chosen_dir:", contents)
@@ -258,14 +267,15 @@ def run_custom_ui():
         st.error("No valid mother folders found with required subfolders.")
         return
 
-    # Gather immediate subdirectories.
+    # Gather immediate subdirectories
     area_options = sorted(
         [d for d in os.listdir(chosen_dir) if os.path.isdir(os.path.join(chosen_dir, d))]
     )
     st.write("### DEBUG: Found subdirectories:", area_options)
     
+    # If Option B has no subdirs, we might guess "7"
     if method_option == "Option B" and not area_options:
-        st.warning("No subdirectories found in Option B path; using default area list.")
+        st.warning("No subdirectories found in Option B path; defaulting area_options to ['7'].")
         area_options = ["7"]
     
     area = st.sidebar.selectbox("Select Area", area_options, key="waterbody_choice")
@@ -304,8 +314,9 @@ def run_lake_processing_app(waterbody: str, index: str):
         if not DATES:
             st.error("No date information available.")
             st.stop()
-        # Replace the following placeholder with your full lake processing logic.
-        st.write("Running Lake Processing... (insert your processing logic here)")
+        
+        # Placeholder for your actual processing logic
+        st.write("Running Lake Processing logic here...")
 
 def run_water_quality_dashboard(waterbody: str, index: str):
     with st.container():
@@ -315,8 +326,9 @@ def run_water_quality_dashboard(waterbody: str, index: str):
         if data_folder is None:
             st.error("Data folder for the selected area/index does not exist.")
             st.stop()
-        # Replace the following placeholder with your full dashboard logic.
-        st.write("Running Water Quality Dashboard... (insert your dashboard logic here)")
+        
+        # Placeholder for your actual dashboard logic
+        st.write("Running Water Quality Dashboard logic here...")
 
 # -----------------------------------------------------------------------------
 # Main entry point
