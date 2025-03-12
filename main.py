@@ -4,12 +4,12 @@
 r"""
 Subterranean Detection App (Enterprise-Grade UI)
 -------------------------------------------------
-For Option A, data is read from "folder_a" (relative to main.py) and for Option B,
-the path is hard-coded to:
-    C:\Users\ilioumbas\Documents\GitHub\Sub
+Data is read from "folder_a" (relative to main.py).
 
-Ensure that for Option B, your area folders (e.g., "7") are located directly in
-that folder, with subfolders (e.g., "7_grid", "7_jpgs", etc.).
+Ensure your folder structure is:
+  Subterra_2/
+      main.py
+      folder_a/   <- contains area folders (e.g., "7", etc.) with their subfolders
 """
 
 import os
@@ -153,7 +153,6 @@ def load_lake_shape_from_xml(xml_file: str, bounds: tuple = None,
             transformed_points = []
             for x_xml, y_xml in points:
                 x_geo = minx + (x_xml / xml_width) * (maxx - minx)
-                # Adjust transformation as needed:
                 y_geo = maxx - (y_xml / xml_height) * (maxx - miny)
                 transformed_points.append([x_geo, y_geo])
             points = transformed_points
@@ -200,8 +199,7 @@ def load_data(input_folder: str, shapefile_name="shapefile.xml"):
         debug("No XML outline found in folder", input_folder)
 
     all_tif_files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
-    tif_files = [fp for fp in all_tif_files
-                 if os.path.basename(fp).lower() != "mask.tif"]
+    tif_files = [fp for fp in all_tif_files if os.path.basename(fp).lower() != "mask.tif"]
     if not tif_files:
         raise Exception("No GeoTIFF files found.")
     with rasterio.open(tif_files[0]) as src:
@@ -224,38 +222,28 @@ def load_data(input_folder: str, shapefile_name="shapefile.xml"):
     return stack, np.array(days), date_list
 
 # -----------------------------------------------------------------------------
-# get_data_folder: For Option A, use folder_a; for Option B, use the hard-coded path
+# get_data_folder: Always use folder_a.
 # -----------------------------------------------------------------------------
 def get_data_folder(waterbody: str, index: str) -> str:
-    """Decide which base folder to use, then locate the subfolder for waterbody and index."""
-    # If the user selected Option A, we use folder_a next to this file.
-    if st.session_state.get("method_option", "Option A") == "Option A":
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        base_folder = os.path.join(base_dir, "folder_a")
-    else:
-        # Hard-coded path for Option B
-        base_folder = r"C:\Users\ilioumbas\Documents\GitHub\Sub"
-
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    base_folder = os.path.join(base_dir, "folder_a")
     debug("Base folder being used:", base_folder)
-
     if not os.path.exists(base_folder):
         st.error(f"Base folder does not exist: {base_folder}")
         return None
 
-    # The user selects an "area" (e.g. "7") from the sidebar, which we treat as waterbody
     waterbody_folder = os.path.join(base_folder, waterbody)
     debug("Looking for area folder at:", waterbody_folder)
     if not os.path.exists(waterbody_folder):
         st.error(f"Area folder not found: {waterbody_folder}")
         return None
 
-    # Decide on the subfolder for the index
     if index == "Χλωροφύλλη":
         data_folder = os.path.join(waterbody_folder, "Chlorophyll")
     elif index == "Burned Areas":
         data_folder = os.path.join(waterbody_folder, "Burned Areas")
-    elif index == "Πραγματικό" and st.session_state.get("method_option") != "Option A":
-        data_folder = os.path.join(waterbody_folder, "Pragmatiko")
+    elif index == "Πραγματικό":
+        data_folder = os.path.join(waterbody_folder, index)
     else:
         data_folder = os.path.join(waterbody_folder, index)
 
@@ -269,7 +257,6 @@ def get_data_folder(waterbody: str, index: str) -> str:
 # UI Functions
 # -----------------------------------------------------------------------------
 def run_intro_page():
-    """Display the intro card at the top."""
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
         col_logo, col_text = st.columns([1, 3])
@@ -295,30 +282,23 @@ def run_intro_page():
         st.markdown('</div>', unsafe_allow_html=True)
 
 def run_custom_ui():
-    """Allow user to pick Option A or B, area, index, and analysis type."""
     st.sidebar.markdown("<div class='nav-section'><h4>Analysis Settings</h4></div>",
                         unsafe_allow_html=True)
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    method_option = st.sidebar.selectbox(
-        "Select Methodology", ["Option A", "Option B"], key="method_option"
-    )
-    if method_option == "Option A":
-        chosen_dir = os.path.join(base_dir, "folder_a")
-    else:
-        chosen_dir = os.path.join(base_dir, "folder_b")
-
+    # In this version, we only support Option A.
+    st.sidebar.write("**Methodology:** Option A (folder_a)")
+    chosen_dir = os.path.join(base_dir, "folder_a")
     st.write(f"**Data will be read from:** {chosen_dir}")
     debug("Chosen directory:", chosen_dir)
 
-    # Attempt to list immediate contents for debugging
+    # List immediate contents for debugging
     try:
         contents = os.listdir(chosen_dir)
         st.write("### Immediate contents of chosen_dir:", contents)
     except Exception as ex:
         st.error(f"Error listing contents of {chosen_dir}: {ex}")
 
-    # Show a full directory tree for debug
     st.write("### DEBUG: Directory Tree for chosen_dir:")
     for root, dirs, files in os.walk(chosen_dir):
         st.write(f"**{root}**")
@@ -335,11 +315,9 @@ def run_custom_ui():
         if os.path.isdir(os.path.join(chosen_dir, d))
     )
     st.write("### DEBUG: Found subdirectories:", area_options)
-
-    # If Option B has no subdirs, we can fallback to a default
-    if method_option == "Option B" and not area_options:
-        st.warning("No subdirectories found in Option B path; using default area list [7].")
-        area_options = ["7"]
+    if not area_options:
+        st.warning("No subdirectories found in folder_a.")
+        return
 
     area = st.sidebar.selectbox("Select Area", area_options, key="waterbody_choice")
     index = st.sidebar.selectbox(
@@ -356,7 +334,7 @@ def run_custom_ui():
     st.sidebar.markdown(
         f"""
         <div style="padding: 0.5rem; background:#262626; border-radius:5px; margin-top:1rem;">
-            <strong>Methodology:</strong> {method_option}<br>
+            <strong>Methodology:</strong> Option A<br>
             <strong>Area:</strong> {area}<br>
             <strong>Index:</strong> {index}<br>
             <strong>Analysis:</strong> {analysis}
@@ -369,7 +347,6 @@ def run_custom_ui():
 # Core Processing Functions (Lake Processing & Dashboard)
 # -----------------------------------------------------------------------------
 def run_lake_processing_app(waterbody: str, index: str):
-    """Implements the Subterranean Processing logic."""
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.title(f"Subterranean Processing ({waterbody} - {index})")
@@ -390,17 +367,13 @@ def run_lake_processing_app(waterbody: str, index: str):
             st.error("No date information available.")
             st.stop()
 
-        # -------------------------------------------------------------------
-        # Place your actual "lake processing" code here. For now, just debug:
-        # -------------------------------------------------------------------
+        # PLACEHOLDER: Insert your actual lake processing logic here.
         st.write("Running Lake Processing... (insert your processing logic here)")
         st.write(f"Loaded {len(DATES)} GeoTIFF images for analysis.")
-        # Example: st.write(STACK.shape, DAYS, DATES)
 
         st.markdown('</div>', unsafe_allow_html=True)
 
 def run_water_quality_dashboard(waterbody: str, index: str):
-    """Implements the Subterranean Quality Dashboard logic."""
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.title(f"Subterranean Quality Dashboard ({waterbody} - {index})")
@@ -410,8 +383,7 @@ def run_water_quality_dashboard(waterbody: str, index: str):
             st.error("Data folder for the selected area/index does not exist.")
             st.stop()
 
-        # For example, maybe we read images or do some other analysis:
-        # For now, just debug:
+        # PLACEHOLDER: Insert your water quality dashboard logic here.
         st.write("Running Water Quality Dashboard... (insert your dashboard logic here)")
 
         st.markdown('</div>', unsafe_allow_html=True)
