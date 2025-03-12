@@ -4,13 +4,10 @@
 """
 Subterranean Detection App (Enterprise-Grade UI)
 -------------------------------------------------
-For Option A, data is read from "folder_a" and for Option B, from "folder_b".
-All file paths are constructed absolutely using the location of this script.
-Make sure your folder structure is:
-  Subterra_2/
-      main.py
-      folder_a/   <- contains area folders for Option A
-      folder_b/   <- contains area folders (e.g., "7", etc.) for Option B
+For Option A, data is read from "folder_a" (relative to main.py) and for Option B, from a hard-coded path:
+    C:\Users\ilioumbas\Documents\GitHub\Sub
+Ensure that for Option B, your area folders (e.g. "7") are located directly in that folder with their
+subfolders (e.g. "7_grid", "7_jpgs", etc.).
 """
 
 import os
@@ -57,7 +54,7 @@ def inject_custom_css():
         html, body, [class*="css"] { font-family: 'Roboto', sans-serif; }
         .block-container { background: #0d0d0d; color: #e0e0e0; padding: 1rem; }
         .sidebar .sidebar-content { background: #1b1b1b; border: none; }
-        .card { background: #1e1e1e; padding: 2rem; border-radius: 12px; 
+        .card { background: #1e1e1e; padding: 2rem; border-radius: 12px;
                 box-shadow: 0 4px 8px rgba(0,0,0,0.6); margin-bottom: 2rem; }
         .header-title { color: #ffca28; margin-bottom: 1rem; font-size: 1.75rem; text-align: center; }
         .nav-section { padding: 1rem; background: #262626; border-radius: 8px; margin-bottom: 1rem; }
@@ -176,19 +173,19 @@ def load_data(input_folder: str, shapefile_name="shapefile.xml"):
     return stack, np.array(days), date_list
 
 # -----------------------------------------------------------------------------
-# get_data_folder: Build absolute paths using base_dir and chosen methodology.
+# get_data_folder: For Option A, use folder_a; for Option B, hard-code the path.
 # -----------------------------------------------------------------------------
 def get_data_folder(waterbody: str, index: str) -> str:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    selected_method = st.session_state.get("method_option", "Option A")
-    if selected_method == "Option A":
+    if st.session_state.get("method_option", "Option A") == "Option A":
+        base_dir = os.path.dirname(os.path.abspath(__file__))
         base_folder = os.path.join(base_dir, "folder_a")
     else:
-        base_folder = os.path.join(base_dir, "folder_b")
+        # Hard-coded path for Option B
+        base_folder = r"C:\Users\ilioumbas\Documents\GitHub\Sub"
     
     debug("Base folder being used:", base_folder)
     if not os.path.exists(base_folder):
-        st.error("No valid mother folders found with required subfolders.")
+        st.error(f"Base folder does not exist: {base_folder}")
         return None
 
     waterbody_folder = os.path.join(base_folder, waterbody)
@@ -201,7 +198,7 @@ def get_data_folder(waterbody: str, index: str) -> str:
         data_folder = os.path.join(waterbody_folder, "Chlorophyll")
     elif index == "Burned Areas":
         data_folder = os.path.join(waterbody_folder, "Burned Areas")
-    elif index == "Πραγματικό" and selected_method != "Option A":
+    elif index == "Πραγματικό" and st.session_state.get("method_option") != "Option A":
         data_folder = os.path.join(waterbody_folder, "Pragmatiko")
     else:
         data_folder = os.path.join(waterbody_folder, index)
@@ -234,13 +231,13 @@ def run_intro_page():
 def run_custom_ui():
     st.sidebar.markdown("<div class='nav-section'><h4>Analysis Settings</h4></div>", unsafe_allow_html=True)
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Select methodology; value stored in session_state.
+
     method_option = st.sidebar.selectbox("Select Methodology", ["Option A", "Option B"], key="method_option")
     if method_option == "Option A":
         chosen_dir = os.path.join(base_dir, "folder_a")
     else:
-        chosen_dir = os.path.join(base_dir, "folder_b")
+        # Hard-coded path for Option B.
+        chosen_dir = r"C:\Users\ilioumbas\Documents\GitHub\Sub"
     
     st.write(f"**Data will be read from:** {chosen_dir}")
     debug("Chosen directory:", chosen_dir)
@@ -256,16 +253,16 @@ def run_custom_ui():
         st.error("No valid mother folders found with required subfolders.")
         return
 
-    # Gather immediate subdirectories.
+    # For Option A, scan subdirectories of folder_a; for Option B, list subdirectories in the hard-coded path.
     area_options = sorted(
         [d for d in os.listdir(chosen_dir) if os.path.isdir(os.path.join(chosen_dir, d))]
     )
+    if method_option == "Option B" and not area_options:
+        st.warning("No subdirectories found; using default area list.")
+        area_options = ["7"]
+    
     st.write("### DEBUG: Found subdirectories:", area_options)
     
-    if method_option == "Option B" and not area_options:
-        st.warning("No subdirectories found in folder_b; using default area list.")
-        area_options = ["Κορώνεια", "Πολυφύτου", "Γαδουρά", "Αξιός"]
-
     area = st.sidebar.selectbox("Select Area", area_options, key="waterbody_choice")
     index = st.sidebar.selectbox("Select Index",
                                  ["Πραγματικό", "Χλωροφύλλη", "CDOM", "Colour", "Burned Areas"],
