@@ -31,7 +31,7 @@ from rasterio.errors import NotGeoreferencedWarning
 import warnings
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 
-# Global debug flag
+# Global debug flag. Set to True to show extra debug output.
 DEBUG = False
 
 def debug(*args, **kwargs):
@@ -245,13 +245,23 @@ def run_custom_ui():
     st.write(f"**Data will be read from:** {chosen_dir}")
     debug("Chosen directory:", chosen_dir)
     
+    # Debug: List entire directory tree for chosen_dir.
+    st.write("### DEBUG: Directory Tree for chosen_dir:")
+    for root, dirs, files in os.walk(chosen_dir):
+        st.write(f"**{root}**")
+        st.write("   dirs:", dirs)
+        st.write("   files:", files)
+    
     if not os.path.exists(chosen_dir):
         st.error("No valid mother folders found with required subfolders.")
         return
 
+    # Gather immediate subdirectories.
     area_options = sorted(
         [d for d in os.listdir(chosen_dir) if os.path.isdir(os.path.join(chosen_dir, d))]
     )
+    st.write("### DEBUG: Found subdirectories:", area_options)
+    
     if method_option == "Option B" and not area_options:
         st.warning("No subdirectories found in folder_b; using default area list.")
         area_options = ["Κορώνεια", "Πολυφύτου", "Γαδουρά", "Αξιός"]
@@ -273,7 +283,7 @@ def run_custom_ui():
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# Core Processing Functions
+# Core Processing Functions (Lake Processing & Dashboard)
 # -----------------------------------------------------------------------------
 def run_lake_processing_app(waterbody: str, index: str):
     with st.container():
@@ -293,7 +303,7 @@ def run_lake_processing_app(waterbody: str, index: str):
             st.error("No date information available.")
             st.stop()
 
-        # Basic filters from sidebar
+        # Basic filters from sidebar.
         min_date = min(DATES)
         max_date = max(DATES)
         unique_years = sorted({d.year for d in DATES if d is not None})
@@ -335,14 +345,14 @@ def run_lake_processing_app(waterbody: str, index: str):
         lower_thresh, upper_thresh = threshold_range
         in_range = np.logical_and(stack_filtered >= lower_thresh, stack_filtered <= upper_thresh)
 
-        # "Days in Range" chart
+        # "Days in Range" chart.
         days_in_range = np.nansum(in_range, axis=0)
         fig_days = px.imshow(days_in_range, color_continuous_scale="plasma",
                              title="Chart: Days in Range", labels={"color": "Days in Range"})
         fig_days.update_layout(width=800, height=600)
         st.plotly_chart(fig_days, use_container_width=True, key="fig_days")
         with st.expander("Explanation: Days in Range"):
-            st.write("This chart shows how many days each pixel falls within the selected pixel value range. Adjust the 'Pixel Value Range' slider to see how the result changes.")
+            st.write("This chart shows how many days each pixel falls within the selected pixel value range. Adjust the slider to see changes.")
 
         tick_vals = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 365]
         tick_text = ["1 (Jan)", "32 (Feb)", "60 (Mar)", "91 (Apr)",
@@ -361,7 +371,7 @@ def run_lake_processing_app(waterbody: str, index: str):
         fig_mean.update_layout(coloraxis_colorbar=dict(tickmode='array', tickvals=tick_vals, ticktext=tick_text))
         st.plotly_chart(fig_mean, use_container_width=True, key="fig_mean")
         with st.expander("Explanation: Mean Day of Occurrence"):
-            st.write("This chart displays the mean day of occurrence for pixels within the selected value range. Experiment with the 'Pixel Value Range' to see how the mean day changes.")
+            st.write("This chart displays the mean day of occurrence for pixels within the selected range.")
 
         if display_option.lower() == "thresholded":
             filtered_stack = np.where(in_range, stack_filtered, np.nan)
@@ -381,7 +391,7 @@ def run_lake_processing_app(waterbody: str, index: str):
         fig_sample.update_layout(width=800, height=600)
         st.plotly_chart(fig_sample, use_container_width=True, key="fig_sample")
         with st.expander("Explanation: Mean Sample Image"):
-            st.write("This chart shows the mean pixel value after applying the filter. Choose 'Thresholded' or 'Original' to view the filtered or original image.")
+            st.write("This chart shows the mean pixel value after applying the filter.")
 
         filtered_day_of_year = np.array([d.timetuple().tm_yday for d in filtered_dates])
         def nanargmax_or_nan(arr):
@@ -400,7 +410,7 @@ def run_lake_processing_app(waterbody: str, index: str):
         fig_time.update_layout(coloraxis_colorbar=dict(tickmode='array', tickvals=tick_vals, ticktext=tick_text))
         st.plotly_chart(fig_time, use_container_width=True, key="fig_time")
         with st.expander("Explanation: Time of Maximum Occurrence"):
-            st.write("This chart shows the day of the year when each pixel reached its maximum value within the selected range. Adjust the 'Pixel Value Range' to see how the result changes.")
+            st.write("This chart shows the day when each pixel reached its maximum value.")
 
         st.header("Analysis Maps")
         col1, col2 = st.columns(2)
@@ -427,7 +437,7 @@ def run_lake_processing_app(waterbody: str, index: str):
             else:
                 monthly_days_in_range[m] = None
 
-        months_to_display = [m for m in list(range(1, 13)) if m in selected_months]
+        months_to_display = [m for m in range(1, 13) if m in selected_months]
         months_in_order = sorted(months_to_display)
         if 3 in months_in_order:
             months_in_order = list(range(3, 13)) + [m for m in months_in_order if m < 3]
@@ -454,7 +464,7 @@ def run_lake_processing_app(waterbody: str, index: str):
             if (idx + 1) % num_cols == 0 and (idx + 1) < len(months_in_order):
                 cols = st.columns(num_cols)
         with st.expander("Explanation: Monthly Distribution of Days in Range"):
-            st.write("For each selected month, this chart shows how many days each pixel falls within the selected value range. Months not selected are excluded.")
+            st.write("For each month, this chart shows how many days each pixel falls within the selected value range.")
 
         # Additional Annual Analysis: Annual Distribution of Days in Range
         st.header("Additional Annual Analysis: Annual Distribution of Days in Range")
@@ -491,7 +501,7 @@ def run_lake_processing_app(waterbody: str, index: str):
             if (idx + 1) % num_cols == 0 and (idx + 1) < len(years_to_display):
                 cols = st.columns(num_cols)
         with st.expander("Explanation: Annual Distribution of Days in Range"):
-            st.write("For each selected year, this chart shows how many days each pixel falls within the selected value range. Years not selected are excluded.")
+            st.write("For each year, this chart shows how many days each pixel falls within the selected value range.")
 
         st.info("End of Subterranean Processing.")
         st.markdown('</div>', unsafe_allow_html=True)
