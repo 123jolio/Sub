@@ -1,14 +1,18 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+r"""
+Subterranean Detection App – Option B
+---------------------------------------
+For Option B, data and related folders are assumed to reside in a fixed location.
+Set REPO_ROOT to the absolute path where your area folders (e.g. "7") are located.
+For example, if your folder "7" (with its subfolders like "7_grid", "7_jpgs", etc.) is in:
+    C:\Users\ilioumbas\Documents\GitHub\Sub
+then set REPO_ROOT accordingly.
+"""
+
 import streamlit as st
 import base64, io
-# Patch: Import streamlit.elements.image and add image_to_url accepting extra arguments.
-import streamlit.elements.image as st_image
-def image_to_url(img, *args, **kwargs):
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    encoded_image = base64.b64encode(buffer.getvalue()).decode()
-    return "data:image/png;base64," + encoded_image
-st_image.image_to_url = image_to_url
-
 import sys, os, re, logging, time, numpy as np, pandas as pd, json, math
 from datetime import datetime
 from multiprocessing import Pool, cpu_count, freeze_support
@@ -34,6 +38,9 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tessera
 
 logging.basicConfig(level=logging.INFO)
 
+# Set a global repository root for Option B.
+REPO_ROOT = r"C:\Users\ilioumbas\Documents\GitHub\Sub"
+
 # Define reference dimensions for the grid (originally 512×512)
 ref_width = 512
 ref_height = 512
@@ -53,7 +60,7 @@ def gif_to_frames(gif_path, output_folder):
                 i += 1
             except EOFError:
                 break
-    logging.info("GIF has been processed. Frames saved as JPGs in: " + output_folder)
+    logging.info("GIF processed. Frames saved as JPGs in: " + output_folder)
 
 #############################################
 # HELPER FUNCTIONS
@@ -382,7 +389,7 @@ def process_image(image_path, points):
         rgb = read_rgb_values_at_point(img, pt)
         if rgb:
             r, g, b = rgb
-            grayscale = 0.299*r + 0.587*g + 0.114*b
+            grayscale = 0.299 * r + 0.587 * g + 0.114 * b
             results.append([pt[0], pt[1], round(r, 3), round(g, 3), round(b, 3), round(grayscale, 3)])
     img.close()
     return results
