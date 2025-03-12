@@ -13,3 +13,4 @@ simplekml
 requests
 openpyxl
 streamlit-drawable-canvas 
+contextily
