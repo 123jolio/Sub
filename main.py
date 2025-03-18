@@ -4,13 +4,13 @@
 """
 Subterranean Detection App (Enterprise-Grade UI)
 -------------------------------------------------
-For Option A, data is read from "folder_a" and for Option B, from "folder_b".
+For Approach A, data is read from "folder_a" and for Approach B, from "folder_b".
 All file paths are constructed absolutely using the location of this script.
 Make sure your folder structure is:
   Subterra_2/
       main.py
-      folder_a/   <- contains area folders for Option A
-      folder_b/   <- contains area folders (e.g., "7", etc.) for Option B
+      folder_a/   <- contains area folders for Approach A
+      folder_b/   <- contains area folders (e.g., "7", etc.) for Approach B
 """
 
 import os
@@ -180,8 +180,8 @@ def load_data(input_folder: str, shapefile_name="shapefile.xml"):
 # -----------------------------------------------------------------------------
 def get_data_folder(waterbody: str, index: str) -> str:
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    selected_method = st.session_state.get("method_option", "Option A")
-    if selected_method == "Option A":
+    selected_method = st.session_state.get("method_option", "Approach A")
+    if selected_method == "Approach A":
         base_folder = os.path.join(base_dir, "folder_a")
     else:
         base_folder = os.path.join(base_dir, "folder_b")
@@ -197,11 +197,12 @@ def get_data_folder(waterbody: str, index: str) -> str:
         st.error(f"Area folder not found: {waterbody_folder}")
         return None
 
-    if index == "Χλωροφύλλη":
+    # Note: We change the display text for index but keep folder names unchanged.
+    if index == "NIR":
         data_folder = os.path.join(waterbody_folder, "Chlorophyll")
     elif index == "Burned Areas":
         data_folder = os.path.join(waterbody_folder, "Burned Areas")
-    elif index == "Πραγματικό" and selected_method != "Option A":
+    elif index == "Πραγματικό" and selected_method != "Approach A":
         data_folder = os.path.join(waterbody_folder, "Pragmatiko")
     else:
         data_folder = os.path.join(waterbody_folder, index)
@@ -236,8 +237,9 @@ def run_custom_ui():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Select methodology; value stored in session_state.
-    method_option = st.sidebar.selectbox("Select Methodology", ["Option A", "Option B"], key="method_option")
-    if method_option == "Option A":
+    # Changed options to "Approach A" and "Approach B"
+    method_option = st.sidebar.selectbox("Select Methodology", ["Approach A", "Approach B"], key="method_option")
+    if method_option == "Approach A":
         chosen_dir = os.path.join(base_dir, "folder_a")
     else:
         chosen_dir = os.path.join(base_dir, "folder_b")
@@ -252,13 +254,14 @@ def run_custom_ui():
     area_options = sorted(
         [d for d in os.listdir(chosen_dir) if os.path.isdir(os.path.join(chosen_dir, d))]
     )
-    if method_option == "Option B" and not area_options:
+    if method_option == "Approach B" and not area_options:
         st.warning("No subdirectories found in folder_b; using default area list.")
         area_options = ["Κορώνεια", "Πολυφύτου", "Γαδουρά", "Αξιός"]
 
     area = st.sidebar.selectbox("Select Area", area_options, key="waterbody_choice")
+    # Replace "Χλωροφύλλη" with "NIR" in the index select options.
     index = st.sidebar.selectbox("Select Index",
-                                 ["Πραγματικό", "Χλωροφύλλη", "CDOM", "Colour", "Burned Areas"],
+                                 ["Πραγματικό", "NIR", "CDOM", "Colour", "Burned Areas"],
                                  key="index_choice")
     analysis = st.sidebar.selectbox("Select Analysis Type",
                                     ["Subterranean Processing", "Subterranean Quality Dashboard"],
@@ -278,7 +281,9 @@ def run_custom_ui():
 def run_lake_processing_app(waterbody: str, index: str):
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.title(f"Subterranean Processing ({waterbody} - {index})")
+        # Change displayed title: if index is "Πραγματικό", display as "RGB"
+        display_index = "RGB" if index == "Πραγματικό" else index
+        st.title(f"Subterranean Processing ({waterbody} - {display_index})")
         data_folder = get_data_folder(waterbody, index)
         if data_folder is None:
             st.error("Data folder for the selected area/index does not exist.")
@@ -499,7 +504,9 @@ def run_lake_processing_app(waterbody: str, index: str):
 def run_water_quality_dashboard(waterbody: str, index: str):
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.title(f"Subterranean Quality Dashboard ({waterbody} - {index})")
+        # Change displayed title similarly
+        display_index = "RGB" if index == "Πραγματικό" else index
+        st.title(f"Subterranean Quality Dashboard ({waterbody} - {display_index})")
         data_folder = get_data_folder(waterbody, index)
         if data_folder is None:
             st.error("Data folder for the selected area/index does not exist.")
@@ -986,3 +993,4 @@ if __name__ == "__main__":
     from multiprocessing import freeze_support
     freeze_support()
     main()
+
