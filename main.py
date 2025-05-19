@@ -2,31 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Subterranean Detection App (Enterprise-Grade UI)
--------------------------------------------------
-For Option A, data is read from "folder_a" and for Option B, from "folder_b".
-All file paths are constructed absolutely using the location of this script.
-Make sure your folder structure is:
-  Subterra_2/
-      main.py
-      logo.jpg  (if used)
-      folder_a/   <- contains area folders for Option A
-          Area1/
-              Chlorophyll/
-                  GeoTIFFs/
-                      image_2023_01_01.tif
-                  sampling.kml
-                  lake height.xlsx
-              Pragmatiko/
-                  GeoTIFFs/
-          Area2/
-              ...
-      folder_b/   <- contains area folders (e.g., "7", etc.) for Option B
-          7/
-              Chlorophyll/
-                  GeoTIFFs/
-              ...
-          ...
+Water Quality App (Enterprise-Grade UI)
+-----------------------------------------
+Φιλικό, επαγγελματικό περιβάλλον ανάλυσης δορυφορικών δεδομένων υδάτων.
 """
 
 import os
@@ -47,69 +25,476 @@ from rasterio.errors import NotGeoreferencedWarning
 import warnings
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
 
-# Global debug flag
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
+# Global debug flag (set to True for debugging output)
 DEBUG = False
 
 def debug(*args, **kwargs):
     if DEBUG:
         st.write(*args, **kwargs)
 
-# -------------------------------------------------------------------------
-# Streamlit page configuration
-# -------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Subterranean Detection Characteristics",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# -----------------------------------------------------------------------------
-# Inject custom CSS
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------
+# Εξατομίκευση CSS & Animation για Pro Look
+# ---------------------------------------------------
 def inject_custom_css():
     custom_css = """
     <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
     <style>
-        html, body, [class*="css"] { font-family: 'Roboto', sans-serif; }
-        .block-container { background: #0d0d0d; color: #e0e0e0; padding: 1rem; }
-        .sidebar .sidebar-content { background: #1b1b1b; border: none; }
-        .card { background: #1e1e1e; padding: 2rem; border-radius: 12px; 
-                box-shadow: 0 4px 8px rgba(0,0,0,0.6); margin-bottom: 2rem; }
-        .header-title { color: #ffca28; margin-bottom: 1rem; font-size: 1.75rem; text-align: center; }
-        .nav-section { padding: 1rem; background: #262626; border-radius: 8px; margin-bottom: 1rem; }
-        .nav-section h4 { margin: 0; color: #ffca28; font-weight: 500; }
-        .stButton button { background-color: #3949ab; color: #fff; border-radius: 8px; padding: 10px 20px; border: none;
-                           box-shadow: 0 3px 6px rgba(0,0,0,0.3); transition: background-color 0.3s ease; }
-        .stButton button:hover { background-color: #5c6bc0; }
-        .plotly-graph-div { border: 1px solid #333; border-radius: 8px; }
+        html, body, [class*="css"] {
+            font-family: 'Roboto', sans-serif;
+        }
+        .block-container {
+            background: #161b22; /* Darker background for a more modern feel */
+            color: #e0e0e0;
+            padding: 1.2rem; /* Slightly more padding */
+        }
+        .sidebar .sidebar-content {
+            background: #23272f; /* Sidebar background */
+            border: none;
+        }
+        .card {
+            background: #1a1a1d; /* Card background - very dark gray */
+            padding: 2rem 2.5rem; /* More padding inside cards */
+            border-radius: 16px; /* More rounded corners */
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25); /* Softer shadow */
+            margin-bottom: 2rem;
+            animation: fadein 1.5s; /* Fade-in animation for cards */
+        }
+        @keyframes fadein { 0% {opacity:0;} 100%{opacity:1;} }
+        .header-title {
+            color: #ffd600; /* Gold color for titles */
+            margin-bottom: 1rem;
+            font-size: 2rem; /* Larger title font */
+            text-align: center;
+            letter-spacing: 0.5px;
+            font-weight: 700; /* Bolder title */
+        }
+        .nav-section {
+            padding: 1rem;
+            background: #2c2f36; /* Nav section background in sidebar */
+            border-radius: 10px;
+            margin-bottom: 1.2rem;
+        }
+        .nav-section h4 {
+            margin: 0;
+            color: #ffd600; /* Gold for nav section titles */
+            font-weight: 500;
+        }
+        .stButton button {
+            background-color: #009688; /* Teal button color */
+            color: #fff;
+            border-radius: 8px;
+            padding: 10px 20px;
+            border: none;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.12);
+            font-size: 1.05rem; /* Slightly larger button font */
+            transition: background-color 0.2s;
+        }
+        .stButton button:hover {
+            background-color: #26a69a; /* Lighter teal on hover */
+        }
+        .plotly-graph-div {
+            border: 1px solid #23272f; /* Border for Plotly graphs */
+            border-radius: 10px;
+        }
+        .legend { /* Custom class for legends if needed */
+            font-size: 0.95rem;
+            color: #ffd600;
+        }
+        .footer {
+            text-align:center;
+            color:gray;
+            font-size:0.9rem;
+            padding:1.3rem 0 0.1rem 0;
+        }
     </style>
     """
     st.markdown(custom_css, unsafe_allow_html=True)
 
-inject_custom_css()
+# Call CSS injection at the start
+# inject_custom_css() # This will be called in main() or when script runs
 
+# ---------------------------------------------------
+# Footer Branding
+# ---------------------------------------------------
+def render_footer():
+    st.markdown("""
+        <hr>
+        <div class='footer'>
+            © 2025 EYATH SA • Powered by OpenAI & Streamlit | Contact: <a href='mailto:ilioumbas@eyath.gr'>ilioumbas@eyath.gr</a>
+        </div>
+    """, unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# Καλωσόρισμα και οδηγίες
+# ---------------------------------------------------
+def run_intro_page_new(): # Renamed to avoid conflict if an old one exists
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        col_logo, col_text = st.columns([1, 3]) # Adjusted column ratio
+        with col_logo:
+            # Determine base_dir safely for Streamlit Cloud compatibility
+            base_dir = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
+            logo_path = os.path.join(base_dir, "logo.jpg") # Assuming logo.jpg is in the same directory
+            if os.path.exists(logo_path):
+                st.image(logo_path, width=180, output_format="auto", caption="EYATH Water Quality") # Adjusted width
+            else:
+                st.markdown("💧") # Fallback if logo not found
+        with col_text:
+            st.markdown("""
+                <h2 class='header-title'>🚀 Καλωσορίσατε στην Εφαρμογή Ανάλυσης Υδάτων EYATH</h2>
+                <p style='font-size:1.15rem;text-align:center'>
+                Εξερευνήστε τα δεδομένα ποιότητας με ευκολία.<br>
+                Επιλέξτε τι θέλετε να δείτε από το πλάι και απολαύστε δυναμικά, διαδραστικά γραφήματα!
+                </p>
+                """, unsafe_allow_html=True)
+            with st.expander("🔰 Οδηγίες Χρήσης", expanded=False):
+                st.write("""
+                    - Επιλέξτε υδάτινο σώμα, δείκτη και ανάλυση στην πλαϊνή μπάρα.
+                    - Περιηγηθείτε στις καρτέλες με τα διαγράμματα.
+                    - Ανεβάστε το δικό σας KML για custom σημεία δειγματοληψίας.
+                    - Όλα τα δεδομένα & εικόνες μένουν τοπικά.
+                """)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# Sidebar Navigation
+# ---------------------------------------------------
+def run_custom_ui_new(): # Renamed
+    st.sidebar.markdown("<div class='nav-section'><h4>🛠️ Επιλογές Ανάλυσης</h4></div>", unsafe_allow_html=True)
+    st.sidebar.info("❔ Επιλέξτε τις ρυθμίσεις σας και προχωρήστε στα αποτελέσματα!")
+    # Προσαρμοσμένες επιλογές για το Γαδουρά
+    waterbody = st.sidebar.selectbox("🌊 Υδάτινο σώμα", ["Γαδουρά"], key="waterbody_choice")
+    index = st.sidebar.selectbox("🔬 Δείκτης", ["Πραγματικό", "Χλωροφύλλη", "Θολότητα"], key="index_choice") # Προστέθηκε Θολότητα
+    analysis = st.sidebar.selectbox(
+        "📊 Είδος Ανάλυσης",
+        [
+            "Επιφανειακή Αποτύπωση", # "Lake Processing"
+            "Προφίλ ποιότητας και στάθμης", # "Water Quality Dashboard"
+            "Eργαλεία Πρόβλεψης και έγκαιρης ενημέρωσης" # Νέα επιλογή
+        ],
+        key="analysis_choice"
+    )
+    st.sidebar.markdown(
+        f"""<div style="padding: 0.7rem; background:#2c2f36; border-radius:8px; margin-top:1.2rem;">
+        <strong>🌊 Υδάτινο σώμα:</strong> {waterbody}<br>
+        <strong>🔬 Δείκτης:</strong> {index}<br>
+        <strong>📊 Ανάλυση:</strong> {analysis}
+        </div>""",
+        unsafe_allow_html=True
+    )
+# --------------------------------------------------------------------------
+# Parsing KML -> sampling points
+# --------------------------------------------------------------------------
+def parse_sampling_kml(kml_source) -> list:
+    try:
+        # Κάνε reset το pointer αν είναι file uploader
+        if hasattr(kml_source, "seek"):
+            kml_source.seek(0)
+        # Διαβάζει από uploaded file ή path string
+        if hasattr(kml_source, "read"): # For uploaded file objects
+            tree = ET.parse(kml_source)
+        else: # For file paths (strings)
+            tree = ET.parse(str(kml_source)) # Ensure it's a string for ET.parse
+
+        root = tree.getroot()
+        ns = {'kml': 'http://www.opengis.net/kml/2.2'} # KML namespace
+        points = []
+        # Ψάχνει για LineString που περιέχει τα σημεία
+        for ls in root.findall('.//kml:LineString', ns):
+            coords_text = ls.find('kml:coordinates', ns).text
+            if coords_text:
+                coords = coords_text.strip().split()
+                for i, coord_str in enumerate(coords):
+                    lon_str, lat_str, *_ = coord_str.split(',') # Αγνοεί το υψόμετρο
+                    points.append((f"Point {i+1}", float(lon_str), float(lat_str)))
+        return points
+    except Exception as e:
+        st.error(f"Σφάλμα ανάλυσης KML: {e}")
+        return []
+
+# --------------------------------------------------------------------------
+# Core sampling analyzer
+# --------------------------------------------------------------------------
+# analyze_sampling function from the user's latest code
+def analyze_sampling(sampling_points, first_image_data, first_transform,
+                     images_folder, lake_height_path, selected_points, # selected_points should be list of point names
+                     lower_thresh=0, upper_thresh=255, # These seem unused in current version of analyze_sampling
+                     date_min=None, date_max=None): # Date filters for processing
+    results_colors = {name: [] for name, _, _ in sampling_points}
+    results_mg = {name: [] for name, _, _ in sampling_points}
+    
+    # Ensure selected_points is a list of names for easy lookup
+    if not isinstance(selected_points, list):
+        selected_points = [] # Or handle error
+
+    # Iterate through GeoTIFFs
+    for filename in sorted(os.listdir(images_folder)):
+        if not filename.lower().endswith(('.tif', '.tiff')):
+            continue
+        
+        match_date = re.search(r'(\d{4}_\d{2}_\d{2})', filename) # Flexible date regex
+        if not match_date:
+            continue
+        date_str = match_date.group(1)
+        try:
+            date_obj = datetime.strptime(date_str, '%Y_%m_%d')
+        except ValueError:
+            continue
+
+        # Apply date filtering
+        if date_min and date_obj.date() < date_min:
+            continue
+        if date_max and date_obj.date() > date_max:
+            continue
+
+        image_path = os.path.join(images_folder, filename)
+        with rasterio.open(image_path) as src:
+            if src.count < 3: # Need at least 3 bands for RGB
+                continue
+            
+            # Process only selected sampling points relevant to this image
+            for point_name, lon, lat in sampling_points:
+                if point_name not in selected_points: # Filter by selected_points
+                    continue
+
+                # Convert geographic to pixel coordinates
+                col, row = (~src.transform) * (lon, lat)
+                col, row = int(col), int(row)
+
+                # Check if pixel is within image bounds
+                if not (0 <= col < src.width and 0 <= row < src.height):
+                    continue
+                
+                window = rasterio.windows.Window(col, row, 1, 1)
+                # Assuming bands 1,2,3 are R,G,B like. Adjust if necessary.
+                r_val = src.read(1, window=window)[0,0]
+                g_val = src.read(2, window=window)[0,0]
+                b_val = src.read(3, window=window)[0,0]
+                
+                # Calculate mg value (example, ensure this formula is correct for your data)
+                # Using the map_rgb_to_mg logic: (g / 255.0) * mg_factor (default 2.0)
+                mg_calculated = (g_val / 255.0) * 2.0 if g_val is not None else 0.0 
+                
+                results_mg[point_name].append((date_obj, mg_calculated))
+                # Store normalized RGB for color display
+                results_colors[point_name].append((date_obj, (r_val/255.0, g_val/255.0, b_val/255.0)))
+
+    # GeoTIFF figure with sampling points
+    # Normalize first_image_data if it's not already 0-1 for px.imshow
+    # Assuming first_image_data is (bands, height, width) and needs scaling
+    scaled_first_image = first_image_data.astype(np.float32)
+    for i in range(scaled_first_image.shape[0]):
+        band = scaled_first_image[i,:,:]
+        min_val, max_val = np.nanpercentile(band, 2), np.nanpercentile(band, 98)
+        if max_val > min_val:
+            scaled_first_image[i,:,:] = np.clip((band - min_val) / (max_val - min_val), 0, 1)
+        else:
+            scaled_first_image[i,:,:] = 0 # Or some other default for flat bands
+
+    rgb_display_bg = np.transpose(scaled_first_image, (1,2,0)) # to H,W,C
+
+    fig_geo = px.imshow(rgb_display_bg, title='Εικόνα GeoTIFF με επιλεγμένα σημεία δειγματοληψίας')
+    for name, lon, lat in sampling_points:
+        if name not in selected_points: continue
+        col, row = (~first_transform) * (lon, lat) # Use the transform of the background image
+        fig_geo.add_trace(go.Scatter(x=[col], y=[row], mode='markers+text', text=[name], textposition="top right",
+                                     marker=dict(color='yellow', size=10, symbol='cross'), name=name))
+    fig_geo.update_xaxes(visible=False)
+    fig_geo.update_yaxes(visible=False)
+    fig_geo.update_layout(width=900, height=600, showlegend=True) # showlegend might be useful
+
+    # Lake height data
+    try:
+        df_h = pd.read_excel(lake_height_path)
+        # Assuming first column is Date, second is Height
+        df_h.rename(columns={df_h.columns[0]: 'Date', df_h.columns[1]: 'Height'}, inplace=True)
+        df_h['Date'] = pd.to_datetime(df_h['Date'])
+        df_h.sort_values('Date', inplace=True)
+    except Exception as e:
+        debug(f"Could not read or process lake height Excel: {e}")
+        df_h = pd.DataFrame(columns=['Date','Height']) # Empty dataframe
+
+    # Pixel colors plot + lake height
+    fig_colors = make_subplots(specs=[[{'secondary_y':True}]])
+    
+    point_name_to_y_idx = {name_tuple[0]: i for i, name_tuple in enumerate(sampling_points)}
+
+    for name_tuple in sampling_points: # Iterate through all defined sampling points for consistent y-axis
+        point_name = name_tuple[0]
+        if point_name not in selected_points: # Only plot selected points
+            continue
+        
+        y_idx = point_name_to_y_idx[point_name]
+        
+        data_for_point = sorted(results_colors.get(point_name, []), key=lambda x: x[0])
+        
+        if data_for_point:
+            dates_plot, colors_plot_tuples = zip(*data_for_point)
+            colors_rgb_strings = [f"rgb({int(c[0]*255)},{int(c[1]*255)},{int(c[2]*255)})" for c in colors_plot_tuples]
+            fig_colors.add_trace(go.Scatter(x=list(dates_plot), y=[y_idx]*len(dates_plot), mode='markers',
+                                            marker=dict(color=colors_rgb_strings, size=12, line=dict(width=1, color='DarkSlateGrey')), 
+                                            name=point_name), secondary_y=False)
+    
+    if not df_h.empty:
+        fig_colors.add_trace(go.Scatter(x=df_h['Date'], y=df_h['Height'],
+                                        mode='lines', name='Στάθμη Λίμνης', line=dict(color='cyan', width=2)), secondary_y=True)
+    
+    fig_colors.update_layout(title='Χρώματα Pixel (από εικόνες) & Στάθμη Λίμνης',
+                             xaxis_title='Ημερομηνία',
+                             yaxis_title='Σημεία Δειγματοληψίας (ID)',
+                             yaxis2_title='Στάθμη Λίμνης (m)',
+                             showlegend=True,
+                             legend_title_text='Legend')
+    fig_colors.update_yaxes(tickvals=list(point_name_to_y_idx.values()), 
+                            ticktext=[name for name in point_name_to_y_idx.keys() if name in selected_points], 
+                            secondary_y=False)
+
+
+    # Mean mg plot
+    all_mg_values_by_date = {}
+    for point_name_key in selected_points: # Iterate only over selected points for MG calculation
+        mg_data_list = results_mg.get(point_name_key, [])
+        for d_obj, mg_val in mg_data_list:
+            all_mg_values_by_date.setdefault(d_obj, []).append(mg_val)
+            
+    sorted_dates_mg = sorted(all_mg_values_by_date.keys())
+    mean_mg_values = [np.mean(all_mg_values_by_date[d]) if all_mg_values_by_date[d] else np.nan for d in sorted_dates_mg]
+    
+    fig_mg = go.Figure()
+    if sorted_dates_mg:
+        fig_mg.add_trace(go.Scatter(x=sorted_dates_mg, y=mean_mg_values, mode='lines+markers',
+                                    marker=dict(color=mean_mg_values, 
+                                                colorscale='Viridis', 
+                                                colorbar=dict(title='mg/m³'), 
+                                                size=10, symbol='diamond'),
+                                    line=dict(color='rgba(120,120,120,0.7)'))) # Light gray line
+    fig_mg.update_layout(title='Μέση τιμή mg/m³ (από επιλεγμένα σημεία) στην πορεία του χρόνου',
+                         xaxis_title='Ημερομηνία', yaxis_title='Μέση τιμή mg/m³')
+
+    # Dual plot: Lake Height & Mean mg/m³
+    fig_dual = make_subplots(specs=[[{'secondary_y':True}]])
+    if not df_h.empty:
+        fig_dual.add_trace(go.Scatter(x=df_h['Date'], y=df_h['Height'], name='Στάθμη Λίμνης',
+                                      mode='lines', line=dict(color='deepskyblue')), secondary_y=False)
+    if sorted_dates_mg:
+        fig_dual.add_trace(go.Scatter(x=sorted_dates_mg, y=mean_mg_values, name='Μέση τιμή mg/m³', 
+                                      mode='lines+markers', line=dict(color='orange'),
+                                      marker=dict(symbol='star', size=8)), secondary_y=True)
+    fig_dual.update_layout(title='Στάθμη Λίμνης & Μέση τιμή mg/m³',
+                           xaxis_title='Ημερομηνία',
+                           yaxis_title='Στάθμη Λίμνης (m)',
+                           yaxis2_title='Μέση τιμή mg/m³')
+
+    return fig_geo, fig_dual, fig_colors, fig_mg, results_colors, results_mg, df_h
 # -----------------------------------------------------------------------------
-# Helper functions for file and date handling
+# Helper Function: Create Chlorophyll‑a Legend Figure
 # -----------------------------------------------------------------------------
-def extract_date_from_filename(filename: str):
+def create_chl_legend_figure():
+    levels = [0, 6, 12, 20, 30, 50]
+    colors = ["#496FF2", "#82D35F", "#FEFD05", "#FD0004", "#8E2026", "#D97CF5"]
+    cmap = mcolors.LinearSegmentedColormap.from_list("ChlLegend", 
+                                                      list(zip(np.linspace(0, 1, len(levels)), colors)))
+    norm = mcolors.Normalize(vmin=levels[0], vmax=levels[-1])
+    fig, ax = plt.subplots(figsize=(6, 1.5)) # Adjusted for better aspect ratio
+    fig.subplots_adjust(bottom=0.5)
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([]) # Critical for ScalarMappable
+    cbar = fig.colorbar(sm, cax=ax, orientation="horizontal", ticks=levels)
+    cbar.ax.set_xticklabels([str(l) for l in levels])
+    cbar.set_label("Chlorophyll‑a concentration (mg/m³)")
+    plt.tight_layout() # Ensure everything fits
+    return fig
+
+def create_chl_legend_figure_vertical():
+    levels = [0, 6, 12, 20, 30, 50] # Example levels
+    colors = ["#496FF2", "#82D35F", "#FEFD05", "#FD0004", "#8E2026", "#D97CF5"] # Example colors
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "ChlLegendVertical", # Unique name
+        list(zip(np.linspace(0, 1, len(levels)), colors))
+    )
+    norm = mcolors.Normalize(vmin=levels[0], vmax=levels[-1])
+    
+    fig, ax = plt.subplots(figsize=(1.2, 6)) # Narrow and tall
+    fig.subplots_adjust(left=0.4, right=0.6, top=0.95, bottom=0.05) # Adjust margins
+    
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([]) # Important for ScalarMappable to work correctly
+    
+    cbar = fig.colorbar(sm, cax=ax, orientation="vertical", ticks=levels)
+    cbar.ax.set_yticklabels([str(l) for l in levels]) # Set Y-axis tick labels
+    cbar.set_label("Chlorophyll‑a (mg/m³)", rotation=270, labelpad=15) # Rotate label
+    
+    # plt.tight_layout() # May not be ideal with manual subplot_adjust
+    return fig
+# -----------------------------------------------------------------------------
+# Βοηθητική Συνάρτηση για Επιλογή φακέλου δεδομένων
+# -----------------------------------------------------------------------------
+def get_data_folder(waterbody: str, index: str) -> str:
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
+    except NameError: # Fallback for environments where __file__ is not defined
+        base_dir = os.getcwd()
+    debug("DEBUG: Τρέχων φάκελος:", base_dir)
+    
+    waterbody_map = {
+        "Γαδουρά": "Gadoura"
+        # Add other waterbodies here if needed
+    }
+    waterbody_folder_name = waterbody_map.get(waterbody)
+    if not waterbody_folder_name:
+        st.error(f"Δεν βρέθηκε αντιστοίχιση φακέλου για το υδάτινο σώμα: {waterbody}")
+        return None
+
+    # Map index to subfolder name, case-sensitive or however your folders are named
+    # Example: "Χλωροφύλλη" maps to "Chlorophyll" folder
+    index_folder_map = {
+        "Χλωροφύλλη": "Chlorophyll",
+        "Πραγματικό": "Pragmatiko", # Or "Πραγματικό" if folder name is in Greek
+        "Θολότητα": "Turbidity"   # Or "Θολότητα"
+    }
+    index_folder_name = index_folder_map.get(index, index) # Fallback to index name if no specific mapping
+
+    data_folder = os.path.join(base_dir, waterbody_folder_name, index_folder_name)
+    
+    debug("DEBUG: Ο φάκελος δεδομένων επιλύθηκε σε:", data_folder)
+    if not os.path.exists(data_folder):
+        st.error(f"Ο φάκελος δεν υπάρχει: {data_folder}")
+        return None
+    return data_folder
+# -----------------------------------------------------------------------------
+# Εξαγωγή ημερομηνίας από όνομα αρχείου
+# -----------------------------------------------------------------------------
+def extract_date_from_filename(filename: str): # Already defined, ensure it's used consistently
     basename = os.path.basename(filename)
-    debug("Extracting date from filename:", basename)
+    # Try YYYY_MM_DD or YYYY-MM-DD first
     match = re.search(r'(\d{4})[_-](\d{2})[_-](\d{2})', basename)
-    if not match:
+    if not match: # Then try YYYYMMDD
         match = re.search(r'(\d{4})(\d{2})(\d{2})', basename)
+    
     if match:
         year, month, day = match.groups()
         try:
             date_obj = datetime(int(year), int(month), int(day))
             day_of_year = date_obj.timetuple().tm_yday
             return day_of_year, date_obj
-        except Exception as e:
-            debug("Error converting date:", e)
+        except ValueError as e:
+            debug(f"DEBUG: Σφάλμα μετατροπής ημερομηνίας για {basename}: {e}")
             return None, None
     return None, None
+# -----------------------------------------------------------------------------
+# Βοηθητικές Συναρτήσεις για Εξαγωγή Δεδομένων και Επεξεργασία Εικόνας
+# -----------------------------------------------------------------------------
+# load_lake_shape_from_xml, read_image, load_data are from the older user script.
+# If they are needed for "Επιφανειακή Αποτύπωση" (Lake Processing), they should be here.
+# For now, I'll assume they are part of run_lake_processing_app or similar if that mode is complex.
+# If run_lake_processing_app is simple or a placeholder, these might not be immediately used.
 
-def load_lake_shape_from_xml(xml_file: str, bounds: tuple = None, xml_width: float = 518.0, xml_height: float = 505.0):
-    debug("Loading outline from:", xml_file)
+def load_lake_shape_from_xml(xml_file: str, bounds: tuple = None,
+                             xml_width: float = 518.0, xml_height: float = 505.0):
+    debug("DEBUG: Φόρτωση περιγράμματος από:", xml_file)
     try:
         tree = ET.parse(xml_file)
         root = tree.getroot()
@@ -121,237 +506,198 @@ def load_lake_shape_from_xml(xml_file: str, bounds: tuple = None, xml_width: flo
                 continue
             points.append([float(x_str), float(y_str)])
         if not points:
-            st.warning("No points found in XML:", xml_file)
+            st.warning("Δεν βρέθηκαν σημεία στο XML:", xml_file)
             return None
-        if bounds is not None:
+        if bounds is not None: # Transform points if bounds are given
             minx, miny, maxx, maxy = bounds
             transformed_points = []
             for x_xml, y_xml in points:
                 x_geo = minx + (x_xml / xml_width) * (maxx - minx)
-                # Corrected Y transformation: In many GIS/image contexts, Y might be inverted from top-left origin
-                y_geo = maxy - (y_xml / xml_height) * (maxy - miny) 
+                y_geo = maxy - (y_xml / xml_height) * (maxy - miny) # Y is often inverted
                 transformed_points.append([x_geo, y_geo])
             points = transformed_points
-        if points and (points[0] != points[-1]): # Close the polygon if not already closed
+        if points and (points[0] != points[-1]): # Close polygon if not closed
             points.append(points[0])
-        debug("Loaded", len(points), "points.")
+        debug("DEBUG: Φορτώθηκαν", len(points), "σημεία.")
         return {"type": "Polygon", "coordinates": [points]}
     except Exception as e:
-        st.error(f"Error loading outline from {xml_file}: {e}")
+        st.error(f"Σφάλμα φόρτωσης περιγράμματος από {xml_file}: {e}")
         return None
 
-def read_image(file_path: str, lake_shape: dict = None):
-    debug("Reading image from:", file_path)
+def read_image(file_path: str, lake_shape: dict = None): # For single band processing
+    debug("DEBUG: Ανάγνωση εικόνας από:", file_path)
     with rasterio.open(file_path) as src:
-        img = src.read(1).astype(np.float32) # Read first band as float32
+        img = src.read(1).astype(np.float32) # Read first band
         profile = src.profile.copy()
-        profile.update(dtype="float32") # Ensure profile dtype matches img
+        profile.update(dtype="float32") # Ensure profile matches float32 type
+        
         no_data_value = src.nodata
         if no_data_value is not None:
             img = np.where(img == no_data_value, np.nan, img)
-        # Optional: Treat 0 as NaN if it's a common placeholder for no data in your specific dataset
-        # img = np.where(img == 0, np.nan, img) 
+        # img = np.where(img == 0, np.nan, img) # Optional: treat 0 as NaN
+        
         if lake_shape is not None:
-            from rasterio.features import geometry_mask # Import locally
+            from rasterio.features import geometry_mask # Import here to keep it local
             # Ensure mask is for valid geometries and transform is correct
-            poly_mask = geometry_mask([lake_shape], transform=src.transform, invert=True, out_shape=img.shape)
-            # Invert=True means True where features intersect. We want to keep these.
-            # So, where poly_mask is False (outside), set to NaN.
-            img = np.where(poly_mask, img, np.nan)
+            poly_mask = geometry_mask([lake_shape], 
+                                      transform=src.transform, 
+                                      invert=False, # Mask cells outside polygon
+                                      out_shape=img.shape)
+            img = np.where(~poly_mask, img, np.nan) # Keep data inside polygon (invert=False means True where outside)
     return img, profile
 
-
-def load_data(input_folder: str, shapefile_name="shapefile.xml"): # Used by run_lake_processing_app
-    debug("Loading data from folder:", input_folder)
+def load_data(input_folder: str, shapefile_name="shapefile.xml"): # For Lake Processing
+    debug("DEBUG: load_data καλεσμένη με:", input_folder)
     if not os.path.exists(input_folder):
-        st.error(f"Input folder does not exist: {input_folder}")
-        raise FileNotFoundError(f"Folder does not exist: {input_folder}")
-
-    # Shapefile handling
+        st.error(f"Ο φάκελος δεν υπάρχει: {input_folder}")
+        raise FileNotFoundError(f"Ο φάκελος δεν υπάρχει: {input_folder}") # Raise error to stop
+        
     shapefile_path_xml = os.path.join(input_folder, shapefile_name)
-    # If you use .txt as an alternative for shape data, you can add logic for it here.
+    # Allow for shapefile.txt as well if it's an alternative format you use
     # shapefile_path_txt = os.path.join(input_folder, "shapefile.txt") 
-    lake_shape = None
     
-    # Get TIF files first to extract bounds if shapefile needs transformation
-    all_tif_files = sorted(glob.glob(os.path.join(input_folder, "*.tif"))) # Only .tif for now
-    all_tif_files.extend(sorted(glob.glob(os.path.join(input_folder, "*.tiff")))) # Add .tiff
-    tif_files = [fp for fp in all_tif_files if os.path.basename(fp).lower() != "mask.tif"] # Exclude mask.tif
-
-    if not tif_files:
-        st.error("No GeoTIFF files (.tif, .tiff) found in the specified folder.")
-        raise FileNotFoundError("No GeoTIFF files found.")
-
+    lake_shape = None
     if os.path.exists(shapefile_path_xml):
-        with rasterio.open(tif_files[0]) as src_for_bounds: # Use first TIF for bounds
-            bounds = src_for_bounds.bounds
-        lake_shape = load_lake_shape_from_xml(shapefile_path_xml, bounds=bounds)
+        # Need to get bounds for load_lake_shape_from_xml if it transforms
+        # This requires opening a sample TIF first
+        all_tif_files_temp = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
+        sample_tif_for_bounds = next((f for f in all_tif_files_temp if os.path.basename(f).lower() != "mask.tif"), None)
+        if sample_tif_for_bounds:
+            with rasterio.open(sample_tif_for_bounds) as src_temp:
+                bounds_temp = src_temp.bounds
+            lake_shape = load_lake_shape_from_xml(shapefile_path_xml, bounds=bounds_temp)
+        else:
+            debug("DEBUG: Δεν βρέθηκε sample TIF για φόρτωση ορίων για το shapefile.")
     else:
-        debug("No shapefile.xml found in folder", input_folder)
+        debug("DEBUG: Δεν βρέθηκε XML/TXT περιγράμματος στον φάκελο", input_folder)
 
-    images, days_list, date_obj_list = [], [], []
+    all_tif_files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
+    # Filter out any mask.tif file if it exists
+    tif_files = [fp for fp in all_tif_files if os.path.basename(fp).lower() != "mask.tif"]
+    
+    if not tif_files:
+        st.error("Δεν βρέθηκαν GeoTIFF αρχεία στον φάκελο.")
+        raise FileNotFoundError("Δεν βρέθηκαν GeoTIFF αρχεία.")
+
+    images, days_of_year_list, date_obj_list = [], [], []
     for file_path in tif_files:
         day_of_year, date_obj = extract_date_from_filename(file_path)
-        if day_of_year is None or date_obj is None: # Skip if date extraction failed
-            debug(f"Could not extract date from {file_path}, skipping.")
+        if day_of_year is None or date_obj is None:
+            debug(f"Παράλειψη αρχείου λόγω αποτυχίας εξαγωγής ημερομηνίας: {file_path}")
             continue
         
-        try:
-            img, _ = read_image(file_path, lake_shape=lake_shape) # read_image returns img, profile
-            images.append(img)
-            days_list.append(day_of_year)
-            date_obj_list.append(date_obj)
-        except Exception as e_read:
-            st.warning(f"Could not read or process image {file_path}: {e_read}")
-            continue # Skip this image
-
-    if not images:
-        st.error("No valid images were loaded after processing all files.")
-        raise ValueError("No valid images found.")
+        img, _ = read_image(file_path, lake_shape=lake_shape) # Assumes read_image handles single band
+        images.append(img)
+        days_of_year_list.append(day_of_year)
+        date_obj_list.append(date_obj)
         
-    stack = np.stack(images, axis=0)
-    return stack, np.array(days_list), date_obj_list
-
+    if not images:
+        st.error("Δεν βρέθηκαν έγκυρες εικόνες για επεξεργασία.")
+        raise ValueError("Δεν φορτώθηκαν εικόνες.")
+        
+    image_stack = np.stack(images, axis=0)
+    return image_stack, np.array(days_of_year_list), date_obj_list
 # -----------------------------------------------------------------------------
-# get_data_folder: Build absolute paths using base_dir and chosen methodology.
+# Επεξεργασία Λίμνης (Lake Processing) - "Επιφανειακή Αποτύπωση"
 # -----------------------------------------------------------------------------
-def get_data_folder(waterbody: str, index: str) -> str:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    selected_method = st.session_state.get("method_option", "Option A") # Default to Option A if not set
-    
-    if selected_method == "Option A":
-        method_base_folder = os.path.join(base_dir, "folder_a")
-    elif selected_method == "Option B":
-        method_base_folder = os.path.join(base_dir, "folder_b")
-    else:
-        st.error(f"Unknown methodology: {selected_method}")
-        return None
-    
-    debug("Methodology base folder:", method_base_folder)
-    if not os.path.exists(method_base_folder):
-        st.error(f"Methodology base folder not found: {method_base_folder}")
-        return None
-
-    # waterbody is the area folder name directly under method_base_folder
-    area_folder_path = os.path.join(method_base_folder, waterbody) 
-    debug("Looking for area folder at:", area_folder_path)
-    if not os.path.exists(area_folder_path):
-        st.error(f"Area folder not found: {area_folder_path}")
-        return None
-
-    # Map index to subfolder name (case-sensitive or as your folders are named)
-    index_subfolder_map = {
-        "Χλωροφύλλη": "Chlorophyll",
-        "Πραγματικό": "Pragmatiko",
-        "CDOM": "CDOM",
-        "Colour": "Colour", # Or "Color"
-        "Burned Areas": "Burned Areas"
-        # Add other specific mappings if index name differs from folder name
-    }
-    index_folder_name = index_subfolder_map.get(index, index) # Fallback to index name itself
-
-    data_folder = os.path.join(area_folder_path, index_folder_name)
-    
-    debug("Data folder resolved to:", data_folder)
-    if not os.path.exists(data_folder):
-        st.error(f"Data folder does not exist: {data_folder}")
-        return None
-    return data_folder
-
-# -----------------------------------------------------------------------------
-# UI Functions
-# -----------------------------------------------------------------------------
-def run_intro_page():
+def run_lake_processing_app(waterbody: str, index: str): # Placeholder, needs full implementation
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        col_logo, col_text = st.columns([1, 3])
-        with col_logo:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            logo_path = os.path.join(base_dir, "logo.jpg") # Ensure logo.jpg is in the same directory as the script
-            if os.path.exists(logo_path):
-                st.image(logo_path, width=200) # Adjusted width
-            else:
-                st.markdown("👁️") # Fallback emoji
-                debug("Logo not found at:", logo_path)
-        with col_text:
-            st.markdown("<h2 class='header-title'>Subterranean Detection Characteristics</h2>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center; font-size: 1.1rem;'>This detection application uses remote sensing tools. Select the settings from the sidebar and explore the data.</p>", unsafe_allow_html=True)
+        st.title(f"Επιφανειακή Αποτύπωση ({waterbody} - {index})")
+
+        data_folder = get_data_folder(waterbody, index)
+        if data_folder is None:
+            # Error already shown by get_data_folder
+            st.stop()
+
+        input_folder_geotiffs = os.path.join(data_folder, "GeoTIFFs") # Assuming GeoTIFFs are in a subfolder
+        if not os.path.exists(input_folder_geotiffs):
+            st.error(f"Ο υποφάκελος 'GeoTIFFs' δεν βρέθηκε στο {data_folder}")
+            st.stop()
+            
+        try:
+            # Note: load_data expects shapefile in input_folder_geotiffs if used
+            STACK, DAYS, DATES = load_data(input_folder_geotiffs) 
+        except Exception as e:
+            st.error(f"Σφάλμα φόρτωσης δεδομένων για Επιφανειακή Αποτύπωση: {e}")
+            st.stop()
+
+        if not DATES or STACK is None: # Check if DATES is empty or STACK is None
+            st.error("Δεν φορτώθηκαν δεδομένα ή πληροφορίες ημερομηνίας.")
+            st.stop()
+        
+        st.info(f"Φορτώθηκαν {STACK.shape[0]} εικόνες για την περίοδο από {min(DATES).date()} έως {max(DATES).date()}.")
+        
+        # --- Filters from Sidebar (Example based on previous version) ---
+        min_date_data = min(DATES)
+        max_date_data = max(DATES)
+        
+        st.sidebar.header(f"Φίλτρα ({waterbody} - Επιφ. Αποτύπωση)")
+        threshold_val_range = st.sidebar.slider("Εύρος τιμών pixel (0-255)", 0, 255, (10, 200), key="thresh_lake_proc")
+        
+        # Date range sliders
+        selected_date_range_lake = st.sidebar.slider(
+            "Επιλογή περιόδου", 
+            min_value=min_date_data.date(), 
+            max_value=max_date_data.date(),
+            value=(min_date_data.date(), max_date_data.date()), 
+            key="date_range_lake_proc"
+        )
+        start_date_dt, end_date_dt = selected_date_range_lake
+        start_datetime = datetime.combine(start_date_dt, datetime.min.time())
+        end_datetime = datetime.combine(end_date_dt, datetime.max.time())
+
+
+        # Filter STACK and DATES based on selected_date_range_lake
+        # This needs to be done carefully if DATES contains datetime objects
+        date_indices_to_keep = [
+            i for i, d_obj in enumerate(DATES) 
+            if start_datetime <= d_obj <= end_datetime
+        ]
+
+        if not date_indices_to_keep:
+            st.warning("Δεν υπάρχουν δεδομένα για την επιλεγμένη περίοδο.")
+            st.stop()
+
+        stack_time_filtered = STACK[date_indices_to_keep, :, :]
+        dates_time_filtered = [DATES[i] for i in date_indices_to_keep]
+        # DAYS_time_filtered = DAYS[date_indices_to_keep] # if DAYS is also needed
+
+        # Apply threshold
+        lower_thresh_val, upper_thresh_val = threshold_val_range
+        pixels_in_range_mask = np.logical_and(stack_time_filtered >= lower_thresh_val, stack_time_filtered <= upper_thresh_val)
+        
+        # --- Example Plots (based on previous version's logic) ---
+        
+        # 1. "Ημέρες σε Εύρος" (Days in Range)
+        days_pixel_in_range = np.nansum(pixels_in_range_mask, axis=0)
+        fig_days_in_range = px.imshow(days_pixel_in_range, color_continuous_scale="viridis",
+                                      title="Ημέρες που κάθε pixel ήταν εντός του επιλεγμένου εύρους τιμών")
+        st.plotly_chart(fig_days_in_range, use_container_width=True)
+
+        # 2. "Μέσο Δείγμα Εικόνας" (Average Sample Image after filtering)
+        # Apply mask to stack before mean: where pixels_in_range_mask is False, set to NaN
+        stack_for_mean = np.where(pixels_in_range_mask, stack_time_filtered, np.nan)
+        average_image_filtered = np.nanmean(stack_for_mean, axis=0)
+        
+        fig_avg_image = px.imshow(average_image_filtered, color_continuous_scale="jet",
+                                  title="Μέση εικόνα (pixels εντός εύρους και περιόδου)")
+        st.plotly_chart(fig_avg_image, use_container_width=True)
+
+
+        st.info("Η λειτουργία 'Επιφανειακή Αποτύπωση' είναι υπό ανάπτυξη. Εμφανίζονται βασικά παραδείγματα.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-def run_custom_ui():
-    st.sidebar.markdown("<div class='nav-section'><h4>Analysis Settings</h4></div>", unsafe_allow_html=True)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    method_option = st.sidebar.selectbox("Select Methodology", ["Option A", "Option B"], key="method_option")
-    
-    if method_option == "Option A":
-        chosen_method_dir = os.path.join(base_dir, "folder_a")
-    else: # Option B
-        chosen_method_dir = os.path.join(base_dir, "folder_b")
-    
-    # Display the chosen path for verification by the user
-    # st.sidebar.caption(f"Data source: ...{os.path.sep}{os.path.basename(chosen_method_dir)}") # Show only last part
-    
-    if not os.path.exists(chosen_method_dir):
-        st.sidebar.error(f"Base folder for {method_option} not found: {chosen_method_dir}")
-        # Prevent further selection if base folder is missing
-        st.session_state.waterbody_choice = None 
-        st.session_state.index_choice = None
-        st.session_state.analysis_choice = None
-        return
 
-    # Populate area options based on subdirectories in the chosen_method_dir
-    try:
-        area_options = sorted(
-            [d for d in os.listdir(chosen_method_dir) if os.path.isdir(os.path.join(chosen_method_dir, d))]
-        )
-    except FileNotFoundError: # Should be caught by os.path.exists above, but as a safeguard
-        area_options = []
-        st.sidebar.error(f"Error listing areas in {chosen_method_dir}.")
-
-    if not area_options:
-        st.sidebar.warning(f"No area subdirectories found in {chosen_method_dir}.")
-        # Provide default or empty list for area selection
-        # For Option B, user mentioned defaults if folder_b is empty, but this means folder_b ITSELF is empty of subdirs
-        if method_option == "Option B": # User's original fallback for Option B
-             area_options = ["Κορώνεια", "Πολυφύτου", "Γαδουρά", "Αξιός"] # This might not align with actual folder structure
-             st.sidebar.info("Using default area list as no subdirectories found for Option B.")
-        else: # For Option A or if Option B fallback isn't desired for empty
-             area_options = ["N/A"]
-
-
-    area_selected = st.sidebar.selectbox("Select Area", area_options, key="waterbody_choice")
-    
-    index_options = ["Πραγματικό", "Χλωροφύλλη", "CDOM", "Colour", "Burned Areas"]
-    # "Πραγματικό" might only be valid for Option B if "folder_a" doesn't have "Pragmatiko" folders
-    if method_option == "Option A" and "Πραγματικό" in index_options:
-        # If "Πραγματικό" is not applicable for Option A based on folder structure rules
-        # index_options.remove("Πραγματικό") # Or handle in get_data_folder
-        pass # get_data_folder handles if Pragmatiko exists or not
-
-    index_selected = st.sidebar.selectbox("Select Index", index_options, key="index_choice")
-    
-    analysis_selected = st.sidebar.selectbox("Select Analysis Type",
-                                    ["Subterranean Processing", "Subterranean Quality Dashboard"],
-                                    key="analysis_choice")
-    
-    st.sidebar.markdown(f"""
-    <div style="padding: 0.5rem; background:#262626; border-radius:5px; margin-top:1rem;">
-        <strong>Method:</strong> {method_option}<br>
-        <strong>Area:</strong> {area_selected}<br>
-        <strong>Index:</strong> {index_selected}<br>
-        <strong>Analysis:</strong> {analysis_selected}
-    </div>
-    """, unsafe_allow_html=True)
-# -----------------------------------------------------------------------------
-# Image Processing for Display
-# -----------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# Helper function for image processing in dashboard
+# --------------------------------------------------------------------------
 def process_and_enhance_geotiff_for_display(image_path_to_process):
     try:
         with rasterio.open(image_path_to_process) as src:
             if src.count >= 3: # Needs at least 3 bands for RGB
-                # For Sentinel-2 True Color: use bands [4,3,2] for [R,G,B]
-                # Assuming bands 1,2,3 are the desired R,G,B for this app. Adjust if not.
+                # Assuming bands 1,2,3 are R,G,B. Adjust if necessary.
+                # e.g., for Sentinel-2 True Color: use bands [4,3,2] for [R,G,B]
                 img_bands_raw = src.read([1, 2, 3]) 
 
                 scaled_bands_for_rgb = []
@@ -359,47 +705,45 @@ def process_and_enhance_geotiff_for_display(image_path_to_process):
                     band_data = img_bands_raw[i, :, :].astype(np.float32)
                     nodata_val = src.nodatavals[i] if src.nodatavals and src.nodatavals[i] is not None else None
                     
-                    band_data_for_percentile = band_data.copy() 
+                    band_data_for_percentile = band_data.copy() # Work on a copy
                     if nodata_val is not None:
-                        if not np.isnan(nodata_val): # If nodata is a number
+                        if not np.isnan(nodata_val):
                             band_data_for_percentile[band_data_for_percentile == nodata_val] = np.nan
-                        # If nodata_val is already NaN, it's handled by nanpercentile
+                        # If nodata_val is already NaN, it's fine for nanpercentile
 
                     min_p, max_p = np.nanpercentile(band_data_for_percentile, [2, 98])
                     
-                    if max_p <= min_p: 
+                    if max_p <= min_p: # Handle flat bands or all-NaN bands after masking
                         band_stretched = np.zeros_like(band_data, dtype=np.uint8)
                     else:
                         band_stretched = (band_data - min_p) / (max_p - min_p)
                         band_stretched = np.clip(band_stretched, 0, 1)
                         band_stretched = (band_stretched * 255).astype(np.uint8)
                     
-                    if nodata_val is not None: # Set original NoData pixels to black (0)
+                    # Set original NoData pixels to black (0) in the 8-bit image
+                    if nodata_val is not None:
                         if not np.isnan(nodata_val):
                              band_stretched[band_data == nodata_val] = 0 
-                        else: # If original NoData was NaN
-                             band_stretched[np.isnan(band_data)] = 0
+                        else:
+                             band_stretched[np.isnan(band_data)] = 0 # If original nodata was NaN
 
                     scaled_bands_for_rgb.append(band_stretched)
 
                 if len(scaled_bands_for_rgb) == 3:
                     img_rgb_8bit = np.transpose(np.stack(scaled_bands_for_rgb, axis=0), (1, 2, 0))
-                else: return None # Should not happen if src.count >= 3
+                else: return None
 
-                # --- Pale Color Enhancement ---
                 R, G, B = img_rgb_8bit[:, :, 0], img_rgb_8bit[:, :, 1], img_rgb_8bit[:, :, 2]
                 
-                # **TUNE THESE VALUES** based on your specific "pale anomaly" colors
-                intensity_min_thresh, intensity_max_thresh = 160, 230 # Example: 0-255 range
-                max_channel_difference = 40 # Example: Max diff between R,G,B for low saturation
-
+                intensity_min_thresh, intensity_max_thresh = 160, 230
+                max_channel_difference = 40
+                
                 pale_intensity_mask = (R >= intensity_min_thresh) & (R <= intensity_max_thresh) & \
                                       (G >= intensity_min_thresh) & (G <= intensity_max_thresh) & \
                                       (B >= intensity_min_thresh) & (B <= intensity_max_thresh)
                 
-                rgb_max_ch_vals = np.maximum(np.maximum(R, G), B) # Element-wise max
-                rgb_min_ch_vals = np.minimum(np.minimum(R, G), B) # Element-wise min
-                
+                rgb_max_ch_vals = np.maximum(np.maximum(R, G), B)
+                rgb_min_ch_vals = np.minimum(np.minimum(R, G), B)
                 low_saturation_mask = (rgb_max_ch_vals - rgb_min_ch_vals) < max_channel_difference
                 
                 final_anomaly_mask = pale_intensity_mask & low_saturation_mask
@@ -408,7 +752,7 @@ def process_and_enhance_geotiff_for_display(image_path_to_process):
                 img_enhanced[final_anomaly_mask] = [255, 255, 0] # Highlight with Yellow
                 return img_enhanced
 
-            elif src.count == 1: # Grayscale for single-band images
+            elif src.count == 1: # Grayscale for single-band
                 band_data = src.read(1).astype(np.float32)
                 nodata_val = src.nodata if src.nodata is not None else None
                 band_data_for_percentile = band_data.copy()
@@ -420,367 +764,382 @@ def process_and_enhance_geotiff_for_display(image_path_to_process):
                 else:
                     band_stretched = np.clip((band_data - min_p) / (max_p - min_p), 0, 1)
                     band_8bit = (band_stretched * 255).astype(np.uint8)
-                if nodata_val is not None: # Set NoData to black after scaling
+                if nodata_val is not None: # Set NoData to black
                     if not np.isnan(nodata_val): band_8bit[band_data == nodata_val] = 0
                     else: band_8bit[np.isnan(band_data)] = 0
-                return band_8bit # Returns a 2D array for grayscale
-            return None # Neither 3-band nor 1-band
+                return band_8bit
+            return None # Not 3-band or 1-band
     except Exception as e:
-        st.error(f"Error processing image {os.path.basename(image_path_to_process)}: {e}")
+        st.error(f"Σφάλμα επεξεργασίας εικόνας {os.path.basename(image_path_to_process)}: {e}")
         return None
 # -----------------------------------------------------------------------------
-# Core Processing Functions
+# Πίνακας Ποιότητας Ύδατος - "Προφίλ ποιότητας και στάθμης"
 # -----------------------------------------------------------------------------
-def run_lake_processing_app(waterbody: str, index: str): # Renamed to Subterranean Processing
+def run_water_quality_dashboard(waterbody: str, index: str): # Main focus for image enhancement
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.title(f"Subterranean Processing ({waterbody} - {index})") # Matched analysis type name
+        st.title(f"Προφίλ Ποιότητας και Στάθμης ({waterbody} - {index})")
+
         data_folder = get_data_folder(waterbody, index)
-        if data_folder is None:
-            # Error message already shown by get_data_folder
-            st.stop()
-        
-        # GeoTIFFs are expected to be in a "GeoTIFFs" subfolder
-        input_folder = os.path.join(data_folder, "GeoTIFFs")
-        if not os.path.exists(input_folder):
-            st.error(f"'GeoTIFFs' subfolder not found in {data_folder}")
-            st.stop()
-
-        try:
-            STACK, DAYS, DATES = load_data(input_folder) # load_data expects shapefile in input_folder
-        except Exception as e:
-            st.error(f"Data loading error for Subterranean Processing: {e}")
-            st.stop()
-        
-        if not DATES or STACK is None: # Check if DATES is empty or STACK is None
-            st.error("No data or date information loaded for Subterranean Processing.")
-            st.stop()
-
-        # Basic filters from sidebar (using keys consistent with previous version if applicable)
-        min_date_data = min(DATES)
-        max_date_data = max(DATES)
-        
-        # Note: Sidebar elements are defined once in run_custom_ui. Here we retrieve values.
-        # Or, if filters are specific to this page, define them here.
-        # For this example, assuming filters are specific or re-defined for this context.
-        st.subheader("Filter Settings for Processing") # Use subheader if sidebar is for global
-        
-        threshold_range_lp = st.slider("Pixel Value Range (0-255)", 0, 255, (10, 200), key="thresh_sub_proc")
-        
-        # Date range sliders
-        refined_date_range_lp = st.slider(
-            "Select Date Range for Analysis", 
-            min_value=min_date_data.date(), # Use .date() for slider
-            max_value=max_date_data.date(),
-            value=(min_date_data.date(), max_date_data.date()), 
-            key="date_range_sub_proc"
-        )
-        start_date_dt_lp, end_date_dt_lp = refined_date_range_lp
-        # Convert to datetime for comparison with DATES
-        start_datetime_lp = datetime.combine(start_date_dt_lp, datetime.min.time())
-        end_datetime_lp = datetime.combine(end_date_dt_lp, datetime.max.time())
-
-        # Month and Year filters (example)
-        # month_options_lp = {i: datetime(2000, i, 1).strftime('%B') for i in range(1, 13)}
-        # selected_months_lp = st.multiselect("Filter by Months", options=list(month_options_lp.keys()), format_func=lambda x: month_options_lp[x], default=list(month_options_lp.keys()), key="months_sub_proc")
-        # unique_years_lp = sorted(list(set(d.year for d in DATES)))
-        # selected_years_lp = st.multiselect("Filter by Years", options=unique_years_lp, default=unique_years_lp, key="years_sub_proc")
-
-
-        # Filter STACK and DATES based on selected_date_range_lp
-        selected_indices = [
-            i for i, d_obj in enumerate(DATES) 
-            if start_datetime_lp <= d_obj <= end_datetime_lp 
-            # and d_obj.month in selected_months_lp  # Add if month filter is used
-            # and d_obj.year in selected_years_lp   # Add if year filter is used
-        ]
-
-        if not selected_indices:
-            st.warning("No data matches the selected date range and filters.")
-            st.stop()
-
-        stack_filtered = STACK[selected_indices, :, :]
-        # days_filtered = np.array(DAYS)[selected_indices] # If DAYS is used later
-        # filtered_dates = np.array(DATES)[selected_indices] # If DATES is used later
-
-        lower_thresh, upper_thresh = threshold_range_lp
-        in_range_mask = np.logical_and(stack_filtered >= lower_thresh, stack_filtered <= upper_thresh)
-
-        # Example Plots (from previous structure, adapt as needed)
-        st.markdown("#### Analysis Results")
-
-        # 1. "Days in Range" chart
-        days_in_range_calc = np.nansum(in_range_mask, axis=0)
-        fig_days = px.imshow(days_in_range_calc, color_continuous_scale="plasma",
-                             title="Days Pixel Value in Selected Range", labels={"color": "Number of Days"})
-        st.plotly_chart(fig_days, use_container_width=True)
-        
-        # More plots can be added here based on the full logic of run_lake_processing_app from your reference.
-        # This is a simplified version for demonstration.
-
-        st.info("End of Subterranean Processing.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-def run_water_quality_dashboard(waterbody: str, index: str): # Renamed to Subterranean Quality Dashboard
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.title(f"Subterranean Quality Dashboard ({waterbody} - {index})")
-        data_folder = get_data_folder(waterbody, index)
-        if data_folder is None:
-            st.stop() # Error already shown by get_data_folder
+        if data_folder is None: st.stop()
 
         images_folder = os.path.join(data_folder, "GeoTIFFs")
         if not os.path.exists(images_folder):
-            st.error(f"GeoTIFFs folder not found in {data_folder}")
+            st.error(f"Ο φάκελος GeoTIFFs δεν βρέθηκε στο {data_folder}")
             st.stop()
+            
+        lake_height_path = os.path.join(data_folder, "lake height.xlsx") # Used by analyze_sampling
+        sampling_kml_path = os.path.join(data_folder, "sampling.kml") # For default points
 
-        lake_height_path = os.path.join(data_folder, "lake height.xlsx") # For analyze_sampling
-        sampling_kml_path = os.path.join(data_folder, "sampling.kml")   # For default sampling points
-
-        # Video path (example, adjust as per your actual video file naming and location)
-        video_path = None
-        possible_video_names = ["timelapse.mp4", "animation.gif", f"{waterbody}_timelapse.mp4"]
-        for vid_name in possible_video_names:
-            vid_path_check1 = os.path.join(data_folder, vid_name)
-            vid_path_check2 = os.path.join(images_folder, vid_name)
-            if os.path.exists(vid_path_check1): video_path = vid_path_check1; break
-            if os.path.exists(vid_path_check2): video_path = vid_path_check2; break
-        
-        # Date filters for data processing by analyze_sampling
-        # These are separate from sidebar's global date selectors if any.
-        st.sidebar.markdown("---") # Separator in sidebar
-        st.sidebar.header(f"Dashboard Data Filters ({waterbody})")
-        dashboard_date_start = st.sidebar.date_input("Data Start Date", date(2015, 1, 1), key=f"dash_start_{waterbody}_{index}")
-        dashboard_date_end = st.sidebar.date_input("Data End Date", date.today(), key=f"dash_end_{waterbody}_{index}")
-        # x_start_dt = datetime.combine(dashboard_date_start, datetime.min.time()) # Not directly used by analyze_sampling
-        # x_end_dt = datetime.combine(dashboard_date_end, datetime.max.time())     # analyze_sampling takes date objects
-
-        # Populate available_dates for image selection carousel AND for background GeoTIFF
-        available_dates_carousel = {}
+        # Prepare list of GeoTIFFs and their dates for image selection carousel
         tif_files_list = [f for f in os.listdir(images_folder) if f.lower().endswith(('.tif', '.tiff'))]
-        for filename_carousel in tif_files_list:
-            _, date_obj_carousel = extract_date_from_filename(filename_carousel)
-            if date_obj_carousel:
-                available_dates_carousel[str(date_obj_carousel.date())] = filename_carousel
+        available_dates_for_carousel = {}
+        for f_name in tif_files_list:
+            _, date_obj = extract_date_from_filename(f_name) # Use your existing robust function
+            if date_obj:
+                available_dates_for_carousel[str(date_obj.date())] = f_name
         
-        # Determine first_image_data and first_transform for analyze_sampling's fig_geo background
+        # Background GeoTIFF for fig_geo (from analyze_sampling)
+        # Needs first_image_data and first_transform
+        # Let's pick the most recent image as default background, or the first if none selected
         first_image_data, first_transform = None, None
-        if available_dates_carousel:
-            # Use the most recent image from the available list as default background for fig_geo
-            # Or let user select background? For now, auto-select.
-            bg_date_str_default = sorted(available_dates_carousel.keys())[-1] # Most recent
-            bg_filename_default = available_dates_carousel[bg_date_str_default]
-            bg_path_default = os.path.join(images_folder, bg_filename_default)
+        if available_dates_for_carousel:
+            # Default background: most recent image from the carousel list
+            default_bg_date_str = sorted(available_dates_for_carousel.keys())[-1]
+            default_bg_filename = available_dates_for_carousel[default_bg_date_str]
+            default_bg_path = os.path.join(images_folder, default_bg_filename)
             try:
-                with rasterio.open(bg_path_default) as src_bg:
+                with rasterio.open(default_bg_path) as src_bg:
                     if src_bg.count >= 3:
-                        first_image_data = src_bg.read([1,2,3]) # Assuming bands 1,2,3 for R,G,B
+                        first_image_data = src_bg.read([1,2,3]) # Assuming R,G,B like
                         first_transform = src_bg.transform
                     else:
-                        st.warning(f"Default background GeoTIFF {bg_filename_default} has less than 3 bands.")
-            except Exception as e_bg:
-                st.error(f"Error loading default background GeoTIFF: {e_bg}")
+                        st.warning(f"Default background {default_bg_filename} has <3 bands.")
+            except Exception as e:
+                st.error(f"Error loading default background image: {e}")
         
-        if first_image_data is None or first_transform is None:
-            st.error("Could not load a base GeoTIFF for map display. Some charts may not work.")
-            # Allow app to continue, but analyze_sampling might fail or produce empty fig_geo
+        if first_image_data is None or first_transform is None: # Fallback if loading default failed
+            st.error("Δεν ήταν δυνατή η φόρτωση μιας βασικής εικόνας GeoTIFF για το υπόβαθρο των σημείων. Ορισμένα διαγράμματα ενδέχεται να μην λειτουργούν.")
+            # Allow to proceed but fig_geo might be empty or error out in analyze_sampling
 
-        # analyze_sampling function definition should be here or imported
-        # (Assuming analyze_sampling, parse_sampling_kml, geographic_to_pixel, etc. are defined as in user's script)
-        # For brevity, I'm not repeating their definitions here, but they are needed.
-        # --- PASTE USER'S analyze_sampling, parse_kml, geo_to_pixel, map_rgb_to_mg, mg_to_color HERE ---
-        # (The version from the user's latest provided code will be used below)
-
-        # Define parse_sampling_kml, geographic_to_pixel, map_rgb_to_mg, mg_to_color locally if not global
-        # (Using the definitions from the user's script which are global)
-
-        # Using user's analyze_sampling structure:
-        # It needs to be adapted slightly if it's not a global function or passed correctly.
-        # For this integrated script, it is defined globally.
+        # Sidebar filters for date range, specific to this dashboard
+        st.sidebar.markdown("---")
+        st.sidebar.subheader(f"Φίλτρα για '{index}' ({waterbody})")
+        date_filter_min = st.sidebar.date_input("Από ημερομηνία:", date(2015,1,1), key=f"date_min_{index}")
+        date_filter_max = st.sidebar.date_input("Έως ημερομηνία:", date.today(), key=f"date_max_{index}")
 
 
-        # Session state for results
-        if "default_dashboard_results" not in st.session_state:
-            st.session_state.default_dashboard_results = None
-        if "upload_dashboard_results" not in st.session_state:
-            st.session_state.upload_dashboard_results = None
+        # Tabs for Default and Upload Sampling
+        tab_names = ["Δειγματοληψία (Προεπιλογή)", "Δειγματοληψία (Ανέβασμα KML)"]
+        sampling_tabs = st.tabs(tab_names)
 
-        tab_names_dash = ["Sampling (Default KML)", "Sampling (Upload KML)"]
-        sampling_tabs_dash = st.tabs(tab_names_dash)
+        for i, tab_mode in enumerate(["Default", "Upload"]):
+            with sampling_tabs[i]:
+                st.subheader(f"Ανάλυση με {tab_mode} σημεία")
+                current_sampling_points = []
+                unique_key_suffix = f"_{tab_mode.lower()}"
 
-        # --- Tab 1: Default Sampling ---
-        with sampling_tabs_dash[0]:
-            st.header("Analysis with Default KML")
-            default_sampling_points_dash = []
-            if os.path.exists(sampling_kml_path):
-                default_sampling_points_dash = parse_sampling_kml(sampling_kml_path)
-            else:
-                st.warning(f"Default sampling KML file not found: {sampling_kml_path}")
-
-            if default_sampling_points_dash:
-                point_names_default = [name for name, _, _ in default_sampling_points_dash]
-                selected_points_default = st.multiselect("Select points for analysis:",
-                                                         options=point_names_default,
-                                                         default=point_names_default,
-                                                         key="default_dash_points")
-                if st.button("Run Analysis (Default KML)", key="default_dash_run"):
-                    if not selected_points_default: st.error("Please select at least one point.")
-                    elif first_image_data is None: st.error("Background GeoTIFF data is missing.")
+                if tab_mode == "Default":
+                    if os.path.exists(sampling_kml_path):
+                        current_sampling_points = parse_sampling_kml(sampling_kml_path)
                     else:
-                        with st.spinner("Running analysis..."):
-                            st.session_state.default_dashboard_results = analyze_sampling(
-                                default_sampling_points_dash, first_image_data, first_transform,
-                                images_folder, lake_height_path, selected_points_default
-                            ) # Removed date filters here, analyze_sampling doesn't use them from user's code
-            else:
-                st.info("No default sampling points loaded.")
-            
-            if st.session_state.default_dashboard_results:
-                res_geo, res_dual, res_colors, res_mg, _, _, _ = st.session_state.default_dashboard_results
-                nested_tabs_default = st.tabs(["GeoTIFF", "Enhanced Image Selection", "Video/GIF", "Pixel Colors & Depth", "Mean mg/m³", "Dual Charts", "Detailed mg Analysis"])
-                with nested_tabs_default[0]: # GeoTIFF
-                    st.plotly_chart(res_geo, use_container_width=True, key="dash_def_geo")
-                with nested_tabs_default[1]: # Enhanced Image Selection
-                    st.subheader("Enhanced Image Display")
-                    if available_dates_carousel:
-                        sorted_dates_def = sorted(available_dates_carousel.keys())
-                        if 'img_idx_def' not in st.session_state: st.session_state.img_idx_def = len(sorted_dates_def) -1 
-                        
-                        cols_def = st.columns([1,3,1])
-                        if cols_def[0].button("<< Prev", key="img_prev_def"): st.session_state.img_idx_def = max(0, st.session_state.img_idx_def -1)
-                        sel_date_def = cols_def[1].selectbox("Select Image Date:", sorted_dates_def, index=st.session_state.img_idx_def, key="img_sel_def")
-                        st.session_state.img_idx_def = sorted_dates_def.index(sel_date_def)
-                        if cols_def[2].button("Next >>", key="img_next_def"): st.session_state.img_idx_def = min(len(sorted_dates_def)-1, st.session_state.img_idx_def + 1)
-                        
-                        img_file_def = available_dates_carousel[sel_date_def]
-                        img_path_def = os.path.join(images_folder, img_file_def)
-                        st.caption(f"Displaying: {img_file_def} (Date: {sel_date_def})")
-                        enhanced_img = process_and_enhance_geotiff_for_display(img_path_def)
-                        if enhanced_img is not None: st.image(enhanced_img, use_column_width=True, caption="Enhanced Image")
-                        else: 
-                            if os.path.exists(img_path_def): st.image(img_path_def, use_column_width=True, caption="Original Image (Processing Failed)")
-                            else: st.error("Image file not found.")
-                    else: st.info("No images available for selection.")
-                # ... other default nested tabs ...
-                with nested_tabs_default[2]: # Video
-                    if video_path:
-                        if video_path.endswith(".mp4"): st.video(video_path)
-                        else: st.image(video_path)
-                    else: st.info("No Video/GIF found.")
-                with nested_tabs_default[3]: # Pixel Colors
-                    st.plotly_chart(res_colors, use_container_width=True, key="dash_def_colors")
-                with nested_tabs_default[4]: # Mean mg
-                    st.plotly_chart(res_mg, use_container_width=True, key="dash_def_mg")
-                with nested_tabs_default[5]: # Dual
-                    st.plotly_chart(res_dual, use_container_width=True, key="dash_def_dual")
-                with nested_tabs_default[6]: # Detailed MG - Assuming results_mg is returned by analyze_sampling and is suitable
-                    # This part was from an older version, check if results_mg structure matches
-                    # results_mg_detailed = st.session_state.default_dashboard_results[5] # Index 5 was results_mg
-                    # selected_detail_point_def = st.selectbox("Point for detailed mg:", options=list(results_mg_detailed.keys()),key="def_detail_mg")
-                    # ... (Full detailed MG plot logic) ...
-                    st.info("Detailed mg/m³ analysis section placeholder.")
+                        st.warning(f"Δεν βρέθηκε το προεπιλεγμένο αρχείο KML: {sampling_kml_path}")
+                else: # Upload mode
+                    uploaded_kml_file = st.file_uploader("Ανεβάστε το KML αρχείο σας", type="kml", key=f"kml_upload{unique_key_suffix}")
+                    if uploaded_kml_file:
+                        current_sampling_points = parse_sampling_kml(uploaded_kml_file)
+                
+                if not current_sampling_points:
+                    st.info(f"Δεν έχουν οριστεί/φορτωθεί σημεία δειγματοληψίας για τη λειτουργία {tab_mode}.")
+                    continue # Skip to next tab if no points
+
+                all_point_names = [pt[0] for pt in current_sampling_points]
+                selected_analysis_points = st.multiselect(
+                    "Επιλογή σημείων για ανάλυση:", 
+                    options=all_point_names, 
+                    default=all_point_names, 
+                    key=f"select_pts{unique_key_suffix}"
+                )
+
+                if st.button(f"Εκτέλεση Ανάλυσης ({tab_mode})", key=f"run_analysis{unique_key_suffix}"):
+                    if not selected_analysis_points:
+                        st.error("Παρακαλώ επιλέξτε τουλάχιστον ένα σημείο για ανάλυση.")
+                    elif first_image_data is None or first_transform is None:
+                         st.error("Σφάλμα: Δεν έχει οριστεί βασική εικόνα GeoTIFF (first_image_data).")
+                    else:
+                        with st.spinner("Επεξεργασία δεδομένων... Παρακαλώ περιμένετε."):
+                            session_results_key = f"results{unique_key_suffix}"
+                            st.session_state[session_results_key] = analyze_sampling(
+                                sampling_points=current_sampling_points, # Pass full list for y-axis consistency
+                                first_image_data=first_image_data,
+                                first_transform=first_transform,
+                                images_folder=images_folder,
+                                lake_height_path=lake_height_path,
+                                selected_points=selected_analysis_points, # Pass selected for filtering inside
+                                date_min=date_filter_min, # Pass date filters
+                                date_max=date_filter_max
+                            )
+                
+                session_results_key = f"results{unique_key_suffix}"
+                if session_results_key in st.session_state and st.session_state[session_results_key]:
+                    res_fig_geo, res_fig_dual, res_fig_colors, res_fig_mg, _, _, _ = st.session_state[session_results_key]
+                    
+                    # Nested tabs for results
+                    result_tabs = st.tabs([
+                        "🗺️ GeoTIFF & Σημεία", "🖼️ Επιλογή Εικόνας (Επεξεργ.)", 
+                        "🎬 Video/GIF", "📊 Χρώματα Pixel & Στάθμη", 
+                        "🧪 Μέσο mg/m³", "📈 Διπλά Διαγράμματα"
+                    ])
+                    
+                    with result_tabs[0]: # GeoTIFF & Points
+                        st.plotly_chart(res_fig_geo, use_container_width=True, key=f"geo{unique_key_suffix}")
+                        if index == "Χλωροφύλλη":
+                            st.pyplot(create_chl_legend_figure())
 
 
-        # --- Tab 2: Upload Sampling ---
-        with sampling_tabs_dash[1]:
-            st.header("Analysis with Uploaded KML")
-            uploaded_kml_dash = st.file_uploader("Upload KML file:", type="kml", key="upload_dash_kml")
-            if uploaded_kml_dash:
-                uploaded_sampling_points_dash = parse_sampling_kml(uploaded_kml_dash)
-                if uploaded_sampling_points_dash:
-                    point_names_upload = [name for name, _, _ in uploaded_sampling_points_dash]
-                    selected_points_upload = st.multiselect("Select points for analysis:",
-                                                             options=point_names_upload,
-                                                             default=point_names_upload,
-                                                             key="upload_dash_points")
-                    if st.button("Run Analysis (Uploaded KML)", key="upload_dash_run"):
-                        if not selected_points_upload: st.error("Please select at least one point.")
-                        elif first_image_data is None: st.error("Background GeoTIFF data is missing.")
+                    with result_tabs[1]: # Enhanced Image Selection
+                        st.markdown("#### Επιλογή και Εμφάνιση Επεξεργασμένης Εικόνας GeoTIFF")
+                        if available_dates_for_carousel:
+                            sorted_carousel_dates = sorted(available_dates_for_carousel.keys())
+                            
+                            img_idx_key = f"img_idx{unique_key_suffix}"
+                            if img_idx_key not in st.session_state:
+                                st.session_state[img_idx_key] = len(sorted_carousel_dates) - 1 # Default to most recent
+
+                            # Image Navigation Buttons
+                            cols_nav = st.columns([1,8,1])
+                            if cols_nav[0].button("⬅️ Προηγούμενη", key=f"prev_img{unique_key_suffix}"):
+                                st.session_state[img_idx_key] = max(0, st.session_state[img_idx_key] - 1)
+                            if cols_nav[2].button("Επόμενη ➡️", key=f"next_img{unique_key_suffix}"):
+                                st.session_state[img_idx_key] = min(len(sorted_carousel_dates)-1, st.session_state[img_idx_key] + 1)
+                            
+                            selected_date_str = cols_nav[1].selectbox(
+                                "Επιλογή Ημερομηνίας Εικόνας:", 
+                                options=sorted_carousel_dates, 
+                                index=st.session_state[img_idx_key],
+                                key=f"sel_date_img{unique_key_suffix}"
+                            )
+                            st.session_state[img_idx_key] = sorted_carousel_dates.index(selected_date_str) # Update index
+
+                            img_filename = available_dates_for_carousel[selected_date_str]
+                            img_path = os.path.join(images_folder, img_filename)
+
+                            st.markdown(f"**Εμφανίζεται η εικόνα για:** `{selected_date_str}` (`{img_filename}`)")
+                            enhanced_img_array = process_and_enhance_geotiff_for_display(img_path)
+                            if enhanced_img_array is not None:
+                                st.image(enhanced_img_array, caption=f"Επεξεργασμένη: {selected_date_str}", use_column_width=True)
+                            else: # Fallback if processing fails
+                                st.warning("Η επεξεργασία απέτυχε. Εμφανίζεται η αρχική εικόνα.")
+                                if os.path.exists(img_path):
+                                     st.image(img_path, caption=f"Αρχική: {selected_date_str}", use_column_width=True)
+                                else:
+                                     st.error("Το αρχείο εικόνας δεν βρέθηκε.")
+
                         else:
-                            with st.spinner("Running analysis..."):
-                                st.session_state.upload_dashboard_results = analyze_sampling(
-                                    uploaded_sampling_points_dash, first_image_data, first_transform,
-                                    images_folder, lake_height_path, selected_points_upload
-                                )
-                else:
-                    st.info("No points found in uploaded KML or KML not valid.")
-            else:
-                st.info("Please upload a KML file.")
+                            st.info("Δεν υπάρχουν διαθέσιμες εικόνες στον φάκελο GeoTIFFs για επιλογή.")
+                        if index == "Χλωροφύλλη":
+                            st.pyplot(create_chl_legend_figure())
 
-            if st.session_state.upload_dashboard_results:
-                res_geo_up, res_dual_up, res_colors_up, res_mg_up, _, _, _ = st.session_state.upload_dashboard_results
-                nested_tabs_upload = st.tabs(["GeoTIFF", "Enhanced Image Selection", "Video/GIF", "Pixel Colors & Depth", "Mean mg/m³", "Dual Charts", "Detailed mg Analysis"])
-                with nested_tabs_upload[0]: # GeoTIFF
-                    st.plotly_chart(res_geo_up, use_container_width=True, key="dash_up_geo")
-                with nested_tabs_upload[1]: # Enhanced Image Selection
-                    st.subheader("Enhanced Image Display")
-                    if available_dates_carousel:
-                        sorted_dates_up = sorted(available_dates_carousel.keys())
-                        if 'img_idx_up' not in st.session_state: st.session_state.img_idx_up = len(sorted_dates_up) - 1
+
+                    with result_tabs[2]: # Video/GIF
+                        # Your existing video_path logic - assuming video_path is defined globally or passed
+                        video_path = None # Placeholder, define how video_path is determined
+                        possible_video_paths = [
+                            os.path.join(data_folder, "timelapse.mp4"),
+                            os.path.join(images_folder, "timelapse.mp4"), # Common place
+                            os.path.join(data_folder, "animation.gif"),
+                            os.path.join(images_folder, "animation.gif"),
+                        ]
+                        for p_vid in possible_video_paths:
+                            if os.path.exists(p_vid):
+                                video_path = p_vid
+                                break
+                        if video_path:
+                            if video_path.endswith(".mp4"): st.video(video_path)
+                            else: st.image(video_path)
+                        else: st.info("Δεν βρέθηκε αρχείο Video/GIF.")
+                        if index == "Χλωροφύλλη":
+                            st.pyplot(create_chl_legend_figure())
+                            
+
+                    with result_tabs[3]: # Pixel Colors & Lake Height
+                        cols_chart_legend = st.columns([0.85, 0.15]) # 비율 조정
+                        with cols_chart_legend[0]:
+                            res_fig_colors.update_layout(height=500) # Adjust height if needed
+                            st.plotly_chart(res_fig_colors, use_container_width=True, key=f"colors{unique_key_suffix}")
+                        with cols_chart_legend[1]:
+                            if index == "Χλωροφύλλη":
+                                st.pyplot(create_chl_legend_figure_vertical())
+                                
+                    with result_tabs[4]: # Mean MG
+                        st.plotly_chart(res_fig_mg, use_container_width=True, key=f"mg{unique_key_suffix}")
                         
-                        cols_up = st.columns([1,3,1])
-                        if cols_up[0].button("<< Prev", key="img_prev_up"): st.session_state.img_idx_up = max(0, st.session_state.img_idx_up -1)
-                        sel_date_up = cols_up[1].selectbox("Select Image Date:", sorted_dates_up, index=st.session_state.img_idx_up, key="img_sel_up")
-                        st.session_state.img_idx_up = sorted_dates_up.index(sel_date_up)
-                        if cols_up[2].button("Next >>", key="img_next_up"): st.session_state.img_idx_up = min(len(sorted_dates_up)-1, st.session_state.img_idx_up + 1)
-                        
-                        img_file_up = available_dates_carousel[sel_date_up]
-                        img_path_up = os.path.join(images_folder, img_file_up)
-                        st.caption(f"Displaying: {img_file_up} (Date: {sel_date_up})")
-                        enhanced_img_up = process_and_enhance_geotiff_for_display(img_path_up)
-                        if enhanced_img_up is not None: st.image(enhanced_img_up, use_column_width=True, caption="Enhanced Image")
-                        else:
-                            if os.path.exists(img_path_up): st.image(img_path_up, use_column_width=True, caption="Original Image (Processing Failed)")
-                            else: st.error("Image file not found.")
-                    else: st.info("No images available for selection.")
-                # ... other upload nested tabs ...
-                with nested_tabs_upload[2]: # Video
-                    if video_path:
-                        if video_path.endswith(".mp4"): st.video(video_path)
-                        else: st.image(video_path)
-                    else: st.info("No Video/GIF found.")
-                with nested_tabs_upload[3]: # Pixel Colors
-                    st.plotly_chart(res_colors_up, use_container_width=True, key="dash_up_colors")
-                with nested_tabs_upload[4]: # Mean mg
-                    st.plotly_chart(res_mg_up, use_container_width=True, key="dash_up_mg")
-                with nested_tabs_upload[5]: # Dual
-                    st.plotly_chart(res_dual_up, use_container_width=True, key="dash_up_dual")
-                with nested_tabs_upload[6]: # Detailed MG
-                    st.info("Detailed mg/m³ analysis section placeholder.")
-
-
-        st.info("End of Subterranean Quality Dashboard.")
+                    with result_tabs[5]: # Dual Plot
+                        st.plotly_chart(res_fig_dual, use_container_width=True, key=f"dual{unique_key_suffix}")
+        
+        st.info("Τέλος Πίνακα Ποιότητας Ύδατος.")
         st.markdown('</div>', unsafe_allow_html=True)
+
+# --------------------------------------------------------------------------
+# Predictive Tools with on-the-fly re-calculation for all indices
+# --------------------------------------------------------------------------
+def run_predictive_tools(waterbody: str, current_selected_index: str): # Pass current_selected_index
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.title(f"Εργαλεία Πρόβλεψης & Έγκαιρης Ενημέρωσης ({waterbody})")
+
+        chart_options = ["GeoTIFF Background", "Pixel Colors & Lake Height", "Mean mg/m³", "Lake Height & Mean mg/m³"]
+        selected_charts_to_recalc = st.multiselect(
+            "Επιλέξτε διαγράμματα για επανυπολογισμό με νέα φίλτρα:",
+            options=chart_options,
+            default=chart_options,
+            key="predict_charts_select"
+        )
+
+        st.markdown("##### Παράμετροι Φιλτραρίσματος για Επανυπολογισμό")
+        col_filter1, col_filter2 = st.columns(2)
+        with col_filter1:
+            # Date range for re-calculation
+            predict_date_min = st.date_input("Ημερομηνία Από:", value=date(2015, 1, 1), key="predict_date_min")
+        with col_filter2:
+            predict_date_max = st.date_input("Ημερομηνία Έως:", value=date.today(), key="predict_date_max")
+
+        sampling_type_predict = st.radio("Σύνολο Σημείων Δειγματοληψίας:", ["Default KML", "Upload New KML"], key="predict_kml_type")
+        
+        uploaded_kml_predict = None
+        if sampling_type_predict == "Upload New KML":
+            uploaded_kml_predict = st.file_uploader("Ανεβάστε KML για πρόβλεψη:", type="kml", key="predict_kml_upload")
+
+        # Iterate through all available indices for recalculation
+        indices_to_process = ["Χλωροφύλλη", "Πραγματικό", "Θολότητα"] # As defined in sidebar
+        
+        if st.button("Επανυπολογισμός Διαγραμμάτων", key="predict_recalc_button"):
+            for idx_predict in indices_to_process:
+                with st.expander(f"Αποτελέσματα για Δείκτη: {idx_predict}", expanded=(idx_predict == current_selected_index)):
+                    
+                    data_folder_predict = get_data_folder(waterbody, idx_predict)
+                    if not data_folder_predict:
+                        st.error(f"Δεν βρέθηκε φάκελος δεδομένων για τον δείκτη {idx_predict}.")
+                        continue
+
+                    images_folder_predict  = os.path.join(data_folder_predict, "GeoTIFFs")
+                    lake_height_xl_predict = os.path.join(data_folder_predict, "lake height.xlsx")
+                    default_kml_path_predict = os.path.join(data_folder_predict, "sampling.kml")
+
+                    kml_source_predict = None
+                    if sampling_type_predict == "Default KML":
+                        if os.path.exists(default_kml_path_predict):
+                            kml_source_predict = default_kml_path_predict
+                        else:
+                            st.error(f"Το προεπιλεγμένο KML δεν βρέθηκε για {idx_predict}: {default_kml_path_predict}")
+                            continue
+                    elif uploaded_kml_predict: # Upload New KML and file is uploaded
+                        kml_source_predict = uploaded_kml_predict
+                    else: # Upload New KML but no file uploaded
+                        st.warning(f"Παρακαλώ ανεβάστε ένα αρχείο KML για τον δείκτη {idx_predict} εάν επιλέξατε 'Upload New KML'.")
+                        continue
+                    
+                    sampling_points_predict = parse_sampling_kml(kml_source_predict)
+                    if not sampling_points_predict:
+                        st.warning(f"Δεν βρέθηκαν σημεία δειγματοληψίας από το KML για τον δείκτη {idx_predict}.")
+                        continue
+
+                    # Load a representative GeoTIFF for background in fig_geo
+                    # (analyze_sampling needs first_image_data & first_transform)
+                    first_img_pred, first_tr_pred = None, None
+                    tif_files_pred = sorted(glob.glob(os.path.join(images_folder_predict, "*.tif"))) # Look for .tif
+                    tif_files_pred.extend(sorted(glob.glob(os.path.join(images_folder_predict, "*.tiff")))) # Add .tiff
+
+                    # Filter tif_files_pred by date_min, date_max to pick a relevant background
+                    relevant_tifs_for_bg = []
+                    for tf_path in tif_files_pred:
+                        _, tf_date_obj = extract_date_from_filename(os.path.basename(tf_path))
+                        if tf_date_obj and (predict_date_min <= tf_date_obj.date() <= predict_date_max):
+                            relevant_tifs_for_bg.append(tf_path)
+                    
+                    bg_tif_path_predict = relevant_tifs_for_bg[-1] if relevant_tifs_for_bg else (tif_files_pred[-1] if tif_files_pred else None)
+
+
+                    if bg_tif_path_predict and os.path.exists(bg_tif_path_predict):
+                        with rasterio.open(bg_tif_path_predict) as src_pred_bg:
+                            if src_pred_bg.count >= 3:
+                                first_img_pred = src_pred_bg.read([1,2,3])
+                                first_tr_pred = src_pred_bg.transform
+                            else:
+                                st.error(f"Η εικόνα GeoTIFF {os.path.basename(bg_tif_path_predict)} δεν έχει 3 κανάλια.")
+                                continue
+                    else:
+                        st.error(f"Δεν βρέθηκε κατάλληλη εικόνα GeoTIFF για υπόβαθρο για τον δείκτη {idx_predict}.")
+                        continue
+                    
+                    try:
+                        with st.spinner(f"Επεξεργασία {idx_predict}..."):
+                            pred_fig_geo, pred_fig_dual, pred_fig_colors, pred_fig_mg, _, _, _ = analyze_sampling(
+                                sampling_points=sampling_points_predict,
+                                first_image_data=first_img_pred,
+                                first_transform=first_tr_pred,
+                                images_folder=images_folder_predict,
+                                lake_height_path=lake_height_xl_predict,
+                                selected_points=[pt[0] for pt in sampling_points_predict], # Analyze all parsed points
+                                date_min=predict_date_min, # Pass new date filters
+                                date_max=predict_date_max
+                            )
+                    except Exception as e_anls:
+                        st.error(f"Σφάλμα κατά την ανάλυση για τον δείκτη {idx_predict}: {e_anls}")
+                        continue
+
+                    # Display selected charts
+                    if "GeoTIFF Background" in selected_charts_to_recalc:
+                        st.subheader(f"GeoTIFF & Σημεία ({idx_predict})")
+                        st.plotly_chart(pred_fig_geo, use_container_width=True, key=f"pred_geo_{idx_predict}")
+                    if "Pixel Colors & Lake Height" in selected_charts_to_recalc:
+                        st.subheader(f"Χρώματα Pixel & Στάθμη ({idx_predict})")
+                        st.plotly_chart(pred_fig_colors, use_container_width=True, key=f"pred_colors_{idx_predict}")
+                    if "Mean mg/m³" in selected_charts_to_recalc:
+                        st.subheader(f"Μέσο mg/m³ ({idx_predict})")
+                        st.plotly_chart(pred_fig_mg, use_container_width=True, key=f"pred_mg_{idx_predict}")
+                    if "Lake Height & Mean mg/m³" in selected_charts_to_recalc:
+                        st.subheader(f"Στάθμη & Μέσο mg/m³ ({idx_predict})")
+                        st.plotly_chart(pred_fig_dual, use_container_width=True, key=f"pred_dual_{idx_predict}")
+                        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 # -----------------------------------------------------------------------------
-# Main entry point
+# Main Entry Point
 # -----------------------------------------------------------------------------
 def main():
-    debug("Entered main()")
-    run_intro_page() # Call the defined intro page
-    run_custom_ui()  # Call the defined custom UI for sidebar
+    # Inject custom CSS - should be called once
+    inject_custom_css() 
     
-    # Retrieve selections from session state (set by run_custom_ui)
-    waterbody_selected = st.session_state.get("waterbody_choice", None)
-    index_selected = st.session_state.get("index_choice", None)
-    analysis_selected = st.session_state.get("analysis_choice", None)
-    
-    debug("Selections: Area =", waterbody_selected, "Index =", index_selected, "Analysis =", analysis_selected)
-    
-    if waterbody_selected and waterbody_selected != "N/A" and index_selected and analysis_selected:
-        if analysis_selected == "Subterranean Processing":
+    run_intro_page_new() # Use the new intro page
+    run_custom_ui_new()  # Use the new UI for sidebar
+
+    waterbody_selected = st.session_state.get("waterbody_choice")
+    index_selected = st.session_state.get("index_choice")
+    analysis_selected = st.session_state.get("analysis_choice")
+
+    if waterbody_selected == "Γαδουρά": # Assuming only Gadoura is configured for now
+        if analysis_selected == "Επιφανειακή Αποτύπωση":
+            # This corresponds to the old "Lake Processing"
             run_lake_processing_app(waterbody_selected, index_selected)
-        elif analysis_selected == "Subterranean Quality Dashboard":
+        elif analysis_selected == "Προφίλ ποιότητας και στάθμης":
+            # This corresponds to the "Water Quality Dashboard"
             run_water_quality_dashboard(waterbody_selected, index_selected)
+        elif analysis_selected == "Eργαλεία Πρόβλεψης και έγκαιρης ενημέρωσης":
+            run_predictive_tools(waterbody_selected, index_selected) # Pass current index for default expansion
         else:
-            st.info("Please select a valid analysis type from the sidebar.")
-    elif waterbody_selected == "N/A":
-        st.warning("No areas available for the selected methodology. Please check folder structure or select a different methodology.")
+            st.info("Παρακαλώ επιλέξτε ένα έγκυρο είδος ανάλυσης από την πλαϊνή μπάρα.")
+    # elif analysis_selected == "Burned Areas": # Kept for reference if needed later
+    #     if waterbody_selected == "Γαδουρά":
+    #         # run_burned_areas() # This function was a placeholder
+    #         st.info("Η ανάλυση καμένων περιοχών δεν είναι ακόμα διαθέσιμη.")
+    #     else:
+    #         st.warning("Η ανάλυση 'Burned Areas' είναι προς το παρόν διαθέσιμη μόνο για το υδάτινο σώμα Γαδουρά.")
     else:
-        # This message appears if selections are not yet made or if a base folder was missing.
-        st.info("Please make selections in the sidebar to proceed with an analysis.")
+        st.warning(f"Δεν υπάρχουν διαθέσιμα δεδομένα ή αναλύσεις για τον επιλεγμένο συνδυασμό: {waterbody_selected} / {index_selected} / {analysis_selected}.")
+
+    render_footer()
 
 if __name__ == "__main__":
-    from multiprocessing import freeze_support # For potential cx_Freeze or PyInstaller
-    freeze_support()
     main()
